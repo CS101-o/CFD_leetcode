@@ -1,0 +1,49 @@
+{
+  "id": "naca0012-basic",
+  "title": "First Flight: NACA 0012 Lift Prediction",
+  "slug": "naca0012-basic",
+  "difficulty": "easy",
+  "category": "inviscid_flow",
+  "description": "Welcome to your first CFD challenge! The NACA 0012 is a symmetric airfoil commonly used in aircraft tail surfaces and helicopter rotors.\n\n**Your Task**: Run a simulation of the NACA 0012 airfoil at 5° angle of attack and Reynolds number of 1 million. Predict the lift coefficient (CL) and verify it matches theoretical expectations.\n\n**Learning Objectives**:\n- Understand how angle of attack affects lift\n- Interpret lift coefficient (CL) values\n- Visualize pressure distribution around an airfoil\n- Learn about symmetric airfoils\n\n**Success Criteria**: Achieve CL between 0.50 and 0.60 (±0.05 tolerance)",
+
+  "constraints": {
+    "airfoil_type": "naca_4digit",
+    "airfoil_designation": "0012",
+    "reynolds": 1e6,
+    "alpha": 5.0,
+    "mach": 0.0,
+    "viscous": true,
+    "max_simulations": 3
+  },
+
+  "validation_criteria": {
+    "check_cl": true,
+    "target_cl": 0.55,
+    "cl_tolerance": 0.05,
+    "check_convergence": true
+  },
+
+  "hints": [
+    "Start by setting up the simulation with the specified parameters: NACA 0012, α=5°, Re=1e6",
+    "Run the simulation and check if it converges. XFoil should converge quickly for these conditions.",
+    "Look at the Cp (pressure coefficient) distribution - you should see lower pressure on the upper surface (creating lift)."
+  ],
+
+  "learning_objectives": [
+    "Understand the relationship between angle of attack and lift coefficient",
+    "Learn to interpret pressure coefficient distributions",
+    "Recognize convergence indicators in CFD simulations",
+    "Understand symmetric airfoil behavior"
+  ],
+
+  "reference_solution": {
+    "cl": 0.547,
+    "cd": 0.0082,
+    "cm": 0.0,
+    "converged": true,
+    "explanation": "The NACA 0012 at α=5° produces moderate lift. Being symmetric (zero camber), the moment coefficient is near zero."
+  },
+
+  "points": 100,
+  "order": 1
+}

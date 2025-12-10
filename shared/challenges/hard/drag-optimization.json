@@ -1,0 +1,59 @@
+{
+  "id": "drag-optimization",
+  "title": "Efficiency Challenge: Minimize Drag for Target Lift",
+  "slug": "drag-optimization",
+  "difficulty": "hard",
+  "category": "drag_optimization",
+  "description": "In aircraft design, achieving a target lift while minimizing drag is crucial for fuel efficiency and range. This challenge tests your understanding of airfoil selection and operating conditions.\n\n**Your Task**: Design a configuration that achieves CL = 0.80 ± 0.02 while minimizing drag coefficient (CD). You may:\n- Choose any NACA 4-digit airfoil (thickness 09-18%)\n- Select any angle of attack (-5° to 15°)\n- Set Reynolds number between 5e5 and 5e6\n\n**Your score depends on**:\n- Meeting the CL target (required)\n- Minimizing CD (lower is better)\n- L/D ratio (lift-to-drag ratio)\n\n**Learning Objectives**:\n- Understand the trade-offs between lift and drag\n- Learn about airfoil efficiency (L/D ratio)\n- Explore how thickness affects performance\n- Understand Reynolds number effects on drag\n\n**Success Criteria**: \n- CL between 0.78 and 0.82\n- CD < 0.0070 (excellent)\n- L/D > 100 (excellent efficiency)",
+
+  "constraints": {
+    "airfoil_type": "naca_4digit",
+    "airfoil_options": ["0009", "0012", "0015", "0018", "2412", "4412", "2415", "4415"],
+    "alpha_range": [-5, 15],
+    "reynolds_range": [5e5, 5e6],
+    "mach": 0.0,
+    "viscous": true,
+    "max_simulations": 30
+  },
+
+  "validation_criteria": {
+    "check_cl": true,
+    "target_cl": 0.80,
+    "cl_tolerance": 0.02,
+    "check_cd": true,
+    "scoring_formula": "100 * (1 - (CD - 0.006) / 0.004)",
+    "bonus_for_high_ld": true,
+    "target_ld": 100,
+    "check_convergence": true
+  },
+
+  "hints": [
+    "Thinner airfoils generally have lower drag, but may not achieve high CL efficiently",
+    "Cambered airfoils (non-zero first digit) can achieve target CL at lower angles of attack",
+    "Higher Reynolds numbers typically reduce drag by delaying transition",
+    "The optimal angle of attack balances pressure drag and skin friction",
+    "Try NACA 2412 or 2415 at moderate angles (5-8°) with high Reynolds number",
+    "Calculate L/D ratio: it's the ultimate measure of aerodynamic efficiency"
+  ],
+
+  "learning_objectives": [
+    "Understand drag components (pressure drag vs skin friction)",
+    "Learn about L/D ratio and its importance in aircraft design",
+    "Explore airfoil selection criteria",
+    "Understand Reynolds number effects on boundary layer and drag",
+    "Apply optimization thinking to aerodynamic problems"
+  ],
+
+  "reference_solution": {
+    "airfoil": "2412",
+    "alpha": 6.5,
+    "reynolds": 3e6,
+    "cl": 0.802,
+    "cd": 0.00648,
+    "l_d": 123.8,
+    "explanation": "The NACA 2412 at α=6.5°, Re=3e6 provides excellent efficiency. The 2% camber allows achieving CL=0.8 at a moderate angle where pressure drag is minimal. High Reynolds number keeps the boundary layer attached longer, reducing drag."
+  },
+
+  "points": 500,
+  "order": 10
+}

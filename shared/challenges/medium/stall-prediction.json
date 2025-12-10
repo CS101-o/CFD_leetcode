@@ -1,0 +1,56 @@
+{
+  "id": "stall-prediction",
+  "title": "Danger Zone: Predicting Airfoil Stall",
+  "slug": "stall-prediction",
+  "difficulty": "medium",
+  "category": "stall_prediction",
+  "description": "Stall is one of the most critical phenomena in aerodynamics - when an airfoil loses lift due to flow separation. Understanding stall is essential for aircraft safety.\n\n**Your Task**: Find the stall angle of the NACA 0012 airfoil at Re=1e6. Run a polar sweep from 0° to 20° and identify:\n1. The angle where CL reaches its maximum (CLmax)\n2. The stall angle (where CL starts decreasing)\n3. The maximum CL value\n\n**Learning Objectives**:\n- Understand flow separation and stall mechanics\n- Interpret lift curve behavior near stall\n- Analyze Cp distributions to identify separation\n- Learn about CLmax and its importance\n\n**Success Criteria**: \n- Find CLmax between 1.40 and 1.50\n- Identify stall angle between 13° and 16°\n- Demonstrate understanding of separation patterns",
+
+  "constraints": {
+    "airfoil_type": "naca_4digit",
+    "airfoil_designation": "0012",
+    "reynolds": 1e6,
+    "alpha_range": [0, 20],
+    "alpha_step": 0.5,
+    "mach": 0.0,
+    "viscous": true,
+    "max_simulations": 50
+  },
+
+  "validation_criteria": {
+    "check_cl_max": true,
+    "target_cl_max": 1.45,
+    "cl_max_tolerance": 0.05,
+    "check_alpha_stall": true,
+    "target_alpha_stall": 14.5,
+    "alpha_stall_tolerance": 1.5,
+    "require_polar_sweep": true,
+    "min_alpha_points": 20
+  },
+
+  "hints": [
+    "Run a polar sweep using XFoil from α=0° to α=20° in 0.5° or 1° increments",
+    "Plot CL vs α and look for the peak - that's your CLmax",
+    "Stall occurs slightly after CLmax when the lift curve starts dropping sharply",
+    "Examine Cp distributions near stall - you'll see flow separation on the upper surface moving forward from the trailing edge",
+    "At high angles (>16°), convergence may fail - this indicates severe separation/stall"
+  ],
+
+  "learning_objectives": [
+    "Understand stall mechanics and flow separation",
+    "Identify CLmax from polar data",
+    "Recognize stall indicators in Cp distributions",
+    "Learn about post-stall behavior",
+    "Understand the relationship between angle of attack and flow separation"
+  ],
+
+  "reference_solution": {
+    "cl_max": 1.45,
+    "alpha_stall": 14.5,
+    "cd_at_stall": 0.045,
+    "explanation": "The NACA 0012 stalls around 14-15° due to flow separation starting at the trailing edge and moving forward. CLmax is approximately 1.45. Beyond stall, lift decreases while drag increases dramatically."
+  },
+
+  "points": 250,
+  "order": 5
+}
