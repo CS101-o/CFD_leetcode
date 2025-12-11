@@ -1,41 +1,31 @@
 import numpy as np
 import time
-from typing import Dict, Any
+from typing import Dict, List, Tuple, Any
 
 class NeuralFoilPredictor:
     def predict(self, coordinates, alpha, reynolds, mach=0.0) -> Dict[str, Any]:
-        """
-        Predicts aerodynamic performance using NeuralFoil.
-        """
-        # 1. Lazy import to keep startup fast
+        """Predicts aerodynamic performance using NeuralFoil."""
         try:
             from neuralfoil import get_aero_from_coordinates
         except ImportError:
             from neuralfoil.main import get_aero_from_coordinates
 
-        # 2. Type Safety
         alpha_val = float(alpha)
         reynolds_val = float(reynolds)
         
-        # 3. Coordinate Handling
         if not isinstance(coordinates, np.ndarray):
             coords_array = np.array(coordinates, dtype=np.float32)
         else:
             coords_array = coordinates.astype(np.float32)
 
-        # 4. Execution
         start = time.time()
-        
-        # Note: mach argument removed as it crashes standard NeuralFoil versions
         result = get_aero_from_coordinates(
             coordinates=coords_array,
             alpha=alpha_val,
             Re=reynolds_val
         )
-        
         elapsed_ms = (time.time() - start) * 1000
 
-        # 5. Safe Extraction Helper
         def to_float(val):
             return float(val.item()) if hasattr(val, 'item') else float(val)
 
@@ -49,18 +39,50 @@ class NeuralFoilPredictor:
             'CM': cm,
             'L_D': cl / cd if cd > 1e-6 else 0.0,
             'time_ms': elapsed_ms,
-            'converged': True
+            'converged': True,
+            'solver': 'NeuralFoil'
+        }
+    
+    def predict_polar(self, coordinates, alpha_range: Tuple[float, float], alpha_step: float, reynolds: float) -> List[Dict]:
+        """Generate polar curve data"""
+        results = []
+        alpha_min, alpha_max = alpha_range
+        alphas = np.arange(alpha_min, alpha_max + alpha_step, alpha_step)
+        
+        for alpha in alphas:
+            result = self.predict(coordinates, alpha, reynolds)
+            result['alpha'] = float(alpha)
+            results.append(result)
+        
+        return results
+    
+    def optimize_for_ld(self, base_coordinates, reynolds: float, alpha: float, n_iterations: int) -> Dict:
+        """Simple L/D optimization"""
+        best_ld = 0
+        best_result = None
+        
+        for test_alpha in np.linspace(alpha - 2, alpha + 2, n_iterations):
+            result = self.predict(base_coordinates, test_alpha, reynolds)
+            if result['L_D'] > best_ld:
+                best_ld = result['L_D']
+                best_result = result.copy()
+                best_result['alpha'] = float(test_alpha)
+        
+        return {
+            'best_alpha': best_result['alpha'],
+            'best_L_D': best_ld,
+            'CL': best_result['CL'],
+            'CD': best_result['CD'],
+            'coordinates': base_coordinates.tolist()
         }
 
 def get_predictor():
     return NeuralFoilPredictor()
 
 def create_naca_airfoil(designation: str, n_points: int = 100) -> np.ndarray:
-    """
-    Generates coordinates for a NACA 4-digit airfoil.
-    """
+    """Generates coordinates for a NACA 4-digit airfoil."""
     if not designation or len(designation) != 4:
-        designation = "0012" # Fallback
+        designation = "0012"
 
     m = int(designation[0]) / 100
     p = int(designation[1]) / 10
@@ -68,11 +90,8 @@ def create_naca_airfoil(designation: str, n_points: int = 100) -> np.ndarray:
 
     beta = np.linspace(0, np.pi, n_points // 2)
     x = (1 - np.cos(beta)) / 2
-    
-    # Thickness distribution
     yt = 5*t*(0.2969*np.sqrt(x)-0.1260*x-0.3516*x**2+0.2843*x**3-0.1015*x**4)
     
-    # Camber line
     if p == 0:
         yc = np.zeros_like(x)
         dyc_dx = np.zeros_like(x)
@@ -81,7 +100,6 @@ def create_naca_airfoil(designation: str, n_points: int = 100) -> np.ndarray:
         dyc_dx = np.where(x < p, 2*m/p**2*(p-x), 2*m/(1-p)**2*(p-x))
     
     theta = np.arctan(dyc_dx)
-    
     xu = x - yt*np.sin(theta)
     yu = yc + yt*np.cos(theta)
     xl = x + yt*np.sin(theta)
@@ -93,27 +111,31 @@ def create_naca_airfoil(designation: str, n_points: int = 100) -> np.ndarray:
     return np.concatenate([upper, lower])
 
 def create_custom_airfoil(camber: float = 0.04, thickness: float = 0.12, n_points: int = 100) -> np.ndarray:
-    """
-    Generates a simple custom airfoil based on camber and thickness parameters.
-    """
-    x = np.linspace(0, 1, n_points // 2)
+    """Generates a simple custom airfoil."""
+    m = camber
+    p = 0.4
+    t = thickness
     
-    # Simplified parametric airfoil logic
-    yt = thickness * 5.0 * x * (1 - x)  # Simple thickness shape
-    yc = 4.0 * camber * x * (1 - x)     # Simple camber
+    beta = np.linspace(0, np.pi, n_points // 2)
+    x = (1 - np.cos(beta)) / 2
+    yt = 5*t*(0.2969*np.sqrt(x)-0.1260*x-0.3516*x**2+0.2843*x**3-0.1015*x**4)
     
-    y_upper = yc + yt
-    y_lower = yc - yt
+    if m == 0:
+        yc = np.zeros_like(x)
+        dyc_dx = np.zeros_like(x)
+    else:
+        yc = np.where(x<p, m/p**2*(2*p*x-x**2), m/(1-p)**2*((1-2*p)+2*p*x-x**2))
+        dyc_dx = np.where(x<p, 2*m/p**2*(p-x), 2*m/(1-p)**2*(p-x))
     
-    upper = np.column_stack((x, y_upper))
-    lower = np.column_stack((x[::-1], y_lower[::-1]))
-    
-    return np.concatenate([upper, lower])
+    theta = np.arctan(dyc_dx)
+    xu = x - yt*np.sin(theta)
+    yu = yc + yt*np.cos(theta)
+    xl = x + yt*np.sin(theta)
+    yl = yc - yt*np.cos(theta)
+    return np.column_stack([np.concatenate([xu[::-1],xl[1:]]), np.concatenate([yu[::-1],yl[1:]])])
 
 def get_preset_coordinates(preset_name: str) -> np.ndarray:
-    """
-    Returns coordinates for a known preset name.
-    """
+    """Returns coordinates for a known preset name."""
     preset_name = preset_name.lower().strip()
     
     if preset_name in PRESETS:
@@ -126,10 +148,11 @@ def get_preset_coordinates(preset_name: str) -> np.ndarray:
             
     return create_naca_airfoil("0012")
 
-# Define available presets
 PRESETS = {
+    'naca0012': lambda: create_naca_airfoil("0012"),
+    'naca2412': lambda: create_naca_airfoil("2412"),
+    'naca4412': lambda: create_naca_airfoil("4412"),
     'baseline': lambda: create_naca_airfoil("2412"),
     'high_lift': lambda: create_custom_airfoil(camber=0.08, thickness=0.12),
-    'low_drag': lambda: create_naca_airfoil("0010"),
-    'thick': lambda: create_naca_airfoil("0021"),
+    'low_drag': lambda: create_naca_airfoil("0009"),
 }

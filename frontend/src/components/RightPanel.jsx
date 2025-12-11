@@ -51,7 +51,11 @@ function RightPanel() {
       })
 
       if (response.data.simulation_triggered && response.data.simulation_results) {
-        setResults(response.data.simulation_results)
+        setResults({
+          ...response.data.simulation_results,
+          coordinates: response.data.extracted_params?.coordinates || 
+                       response.data.simulation_results.coordinates
+        })
       }
     } catch (error) {
       console.error('Chat API Error:', error.response?.data || error.message)
