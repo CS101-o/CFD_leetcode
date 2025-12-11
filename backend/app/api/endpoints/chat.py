@@ -4,7 +4,6 @@ AI Chat API endpoints with parameter guidance and NeuralFoil integration
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional, Dict
-import anthropic
 import os
 import re
 import json
