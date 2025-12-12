@@ -3,27 +3,10 @@ FROM python:3.11-slim
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies and XFoil
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
-    build-essential \
-    gfortran \
-    wget \
     curl \
-    git \
     && rm -rf /var/lib/apt/lists/*
-
-# Install XFoil
-RUN wget https://web.mit.edu/drela/Public/web/xfoil/xfoil6.99.tgz \
-    && tar -xzf xfoil6.99.tgz \
-    && cd Xfoil \
-    && mkdir -p bin \
-    && cd plotlib \
-    && ./install \
-    && cd ../bin \
-    && gfortran -o xfoil ../src/*.f -L../plotlib -lPlt \
-    && cp xfoil /usr/local/bin/ \
-    && cd / \
-    && rm -rf Xfoil xfoil6.99.tgz
 
 # Copy requirements
 COPY requirements.txt .
