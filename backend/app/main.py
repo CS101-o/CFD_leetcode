@@ -43,3 +43,26 @@ async def health():
         "cfd": "NeuralFoil",
         "features": ["agent", "simulations", "chat"]
     }
+
+@app.get("/")
+async def root():
+    return {
+        "app": settings.APP_NAME, 
+        "status": "running", 
+        "docs": "/docs",
+        "endpoints": {
+            "agent": "/api/v1/agent",
+            "simulations": "/api/v1/simulations",
+            "chat": "/api/v1/chat",
+            "challenges": "/api/v1/challenges"  # ← Add this
+        }
+    }
+
+@app.get("/health")
+async def health():
+    return {
+        "status": "healthy", 
+        "agent": "FREE", 
+        "cfd": "NeuralFoil",
+        "features": ["agent", "simulations", "chat", "challenges"]  # ← Add this
+    }
