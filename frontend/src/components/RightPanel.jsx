@@ -2,8 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import useStore from '../store/useStore'
 import axios from 'axios'
 
-//const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1'
-const API_URL = 'https://cfd-leetcode-0-2.onrender.com/api/v1'
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1'
 
 function RightPanel() {
   const { chatMessages, addChatMessage, setResults, setLoading } = useStore()
@@ -52,11 +51,14 @@ function RightPanel() {
       })
 
       if (response.data.simulation_triggered && response.data.simulation_results) {
+        const sim = response.data.simulation_results;
         setResults({
-          ...response.data.simulation_results,
-          coordinates: response.data.extracted_params?.coordinates || 
-                       response.data.simulation_results.coordinates
-        })
+          ...sim.results,             // Flattens CL, CD, CM, L_D to top level
+          time_ms: sim.time_ms,
+          coordinates: sim.coordinates,
+          airfoil: sim.airfoil,
+          conditions: sim.conditions,
+  });
       }
     } catch (error) {
       console.error('Chat API Error:', error.response?.data || error.message)
