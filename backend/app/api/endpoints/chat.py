@@ -175,7 +175,7 @@ Requirements: {', '.join(req_text)}"""
 
         # Call LLM
         result = await llm.chat(
-            user_message=request.message,
+            message=request.message,
             conversation_history=history,
             challenge_context=challenge_context
         )

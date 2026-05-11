@@ -26,29 +26,40 @@ VALID_TOOLS = {
 class LLMService:
     """Manages LLM interactions via Ollama using structured JSON prompting."""
 
-    def __init__(self, base_url: str = "http://localhost:11434", model: str = "mistral:7b"):
+    def __init__(self, base_url: str = "http://localhost:11434", model: str = "qwen2.5:7b-instruct"):
         self.base_url = base_url
         self.model = model
         self.api_url = f"{base_url}/api/chat"
         self.executor = ToolExecutor()
         self.client = httpx.AsyncClient(timeout=120.0)
+        self.system_prompt = self._build_default_system_prompt()
+
+    def _build_default_system_prompt(self) -> str:
+        return SYSTEM_PROMPT
 
     async def chat(
         self,
-        user_message: str,
+        message: str,
         conversation_history: Optional[List[Dict]] = None,
         challenge_context: Optional[str] = None,
+        current_results: Optional[Dict] = None,
+        summary_instruction: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Process a user message through structured JSON prompting.
 
         Flow:
         1. Send user message with JSON-output system prompt → model returns JSON action
-        2. Parse JSON → execute the tool
+        2. Parse JSON → execute the tool via ToolExecutor
         3. Send tool results back → model generates human-readable summary
+
+        Args:
+            summary_instruction: If provided, replaces the default summary prompt in
+                step 3. Use this to inject caller-specific synthesis personality
+                (e.g. FlowSense phase 3 instructions) without polluting the action step.
         """
-        # --- Build system prompt with challenge context ---
-        system_content = SYSTEM_PROMPT
+        # --- Build action-step system prompt ---
+        system_content = self.system_prompt
         if challenge_context:
             system_content += f"\n\n{challenge_context}"
 
@@ -57,9 +68,15 @@ class LLMService:
         if conversation_history:
             messages.extend(conversation_history[-10:])
 
-        messages.append({"role": "user", "content": user_message})
+        messages.append({"role": "user", "content": message})
 
         # --- Step 1: Ask LLM to decide an action (JSON) ---
+        print("\n" + "="*60)
+        print("[LLM STEP 1] Sending action request to model...")
+        print(f"[LLM STEP 1] System prompt (first 300 chars): {system_content[:300]}")
+        print(f"[LLM STEP 1] User message: {message}")
+        print("="*60)
+
         action_response = await self._call_llm(messages)
 
         if not action_response:
@@ -72,8 +89,12 @@ class LLMService:
             action_response.get("message", {}).get("content", "").strip()
         )
 
+        print(f"\n[LLM STEP 1] Raw model output:\n{raw_content}\n")
+
         # --- Step 2: Parse the JSON action ---
         action = self._extract_action(raw_content)
+
+        print(f"[LLM STEP 2] Parsed action: {action}")
 
         tool_results = []
         simulation_data = None
@@ -83,9 +104,20 @@ class LLMService:
             tool_name = action["tool"]
             tool_args = action.get("args", {})
 
+            print(f"\n[TOOL EXEC] Running tool: {tool_name}")
+            print(f"[TOOL EXEC] Args: {json.dumps(tool_args, indent=2)}")
+
             # Execute the tool
             result = self.executor.execute(tool_name, tool_args)
             tool_results.append({"name": tool_name, "result": result})
+
+            print(f"[TOOL EXEC] Result keys: {list(result.keys()) if isinstance(result, dict) else type(result)}")
+            if isinstance(result, dict) and "error" not in result:
+                # Print key numbers without dumping full coordinates
+                summary_keys = {k: v for k, v in result.items() if k != "coordinates"}
+                print(f"[TOOL EXEC] Result (no coords): {json.dumps(summary_keys, indent=2, default=str)}")
+            else:
+                print(f"[TOOL EXEC] Result: {result}")
 
             # Collect frontend data
             if tool_name in (
@@ -99,12 +131,27 @@ class LLMService:
                 coordinates = result["coordinates"]
 
             # --- Step 3: Ask LLM to summarize the results ---
-            # Strip coordinates from the summary payload (too large)
             result_for_summary = {
                 k: v
                 for k, v in result.items()
                 if k != "coordinates"
             } if isinstance(result, dict) else result
+
+            # Build the summary user turn — use caller-supplied instruction if provided
+            if summary_instruction:
+                summary_user_content = (
+                    f"Tool `{tool_name}` returned these results:\n"
+                    f"```json\n{json.dumps(result_for_summary, indent=2, default=str)}\n```\n\n"
+                    f"{summary_instruction}"
+                )
+            else:
+                summary_user_content = (
+                    f"Tool `{tool_name}` returned these results:\n"
+                    f"```json\n{json.dumps(result_for_summary, indent=2, default=str)}\n```\n\n"
+                    "Summarize the results for the user in a clear, concise way. "
+                    "Include the key numbers (CL, CD, L/D) and a brief interpretation. "
+                    "Do NOT output JSON. Respond in plain English."
+                )
 
             messages.append({
                 "role": "assistant",
@@ -112,14 +159,11 @@ class LLMService:
             })
             messages.append({
                 "role": "user",
-                "content": (
-                    f"Tool `{tool_name}` returned these results:\n"
-                    f"```json\n{json.dumps(result_for_summary, indent=2, default=str)}\n```\n\n"
-                    "Summarize the results for the user in a clear, concise way. "
-                    "Include the key numbers (CL, CD, L/D) and a brief interpretation. "
-                    "Do NOT output JSON. Respond in plain English."
-                ),
+                "content": summary_user_content,
             })
+
+            print(f"\n[LLM STEP 3] Sending summary request...")
+            print(f"[LLM STEP 3] Summary instruction (first 200 chars): {summary_user_content[:200]}")
 
             summary_response = await self._call_llm(messages)
             if summary_response:
@@ -128,16 +172,19 @@ class LLMService:
                     .get("content", "")
                     .strip()
                 )
+                print(f"\n[LLM STEP 3] Summary output:\n{final_text}\n")
             else:
                 final_text = self._format_fallback(tool_results)
+                print(f"[LLM STEP 3] Summary failed, using fallback: {final_text}")
 
         elif action and action.get("tool") == "direct_response":
-            # Model decided no tool is needed (greeting, explanation, etc.)
+            # Model decided no tool is needed
             final_text = action.get("message", raw_content)
+            print(f"[LLM] Direct response (no tool): {final_text[:200]}")
 
         else:
-            # Could not parse action — use raw content as-is
-            # but clean out any JSON fragments
+            # Could not parse action — clean and return raw content
+            print(f"[LLM] WARN: Could not parse action from output. Cleaning raw response.")
             final_text = self._clean_response(raw_content)
 
         return {

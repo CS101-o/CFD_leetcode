@@ -131,7 +131,8 @@ class ToolExecutor:
         alpha_start: float = -5.0,
         alpha_end: float = 15.0,
         alpha_step: float = 1.0,
-        reynolds_number: float = 1e6
+        reynolds_number: float = 1e6,
+        mach_number: float = 0.0
     ) -> Dict[str, Any]:
         """Run a polar sweep across angles of attack."""
         coords = create_naca_airfoil(naca_designation)
@@ -141,7 +142,8 @@ class ToolExecutor:
             coordinates=coords,
             alpha_range=(alpha_start, alpha_end),
             alpha_step=alpha_step,
-            reynolds=reynolds_number
+            reynolds=reynolds_number,
+            mach=mach_number
         )
 
         # Format results
@@ -170,7 +172,8 @@ class ToolExecutor:
                 "max_CL_alpha": max_cl_point["alpha"],
                 "max_L_D": max_ld_point["L_D"],
                 "max_L_D_alpha": max_ld_point["alpha"],
-            }
+            },
+            "coordinates": coords.tolist()
         }
 
     def _compare_airfoils(
@@ -195,6 +198,8 @@ class ToolExecutor:
         # Sort by L/D ratio
         comparisons.sort(key=lambda x: x["L_D"] or 0, reverse=True)
 
+        best_ld_airfoil = comparisons[0]["airfoil"]
+
         return {
             "status": "success",
             "conditions": {
@@ -202,8 +207,9 @@ class ToolExecutor:
                 "reynolds": reynolds_number
             },
             "comparisons": comparisons,
-            "best_ld": comparisons[0]["airfoil"],
-            "best_lift": max(comparisons, key=lambda x: x["CL"])["airfoil"]
+            "best_ld": best_ld_airfoil,
+            "best_lift": max(comparisons, key=lambda x: x["CL"])["airfoil"],
+            "coordinates": create_naca_airfoil(best_ld_airfoil).tolist()
         }
 
     def _optimize_airfoil(

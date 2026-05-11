@@ -1,0 +1,55 @@
+{
+  "problems": [
+    {
+      "id": "uav-stall-001",
+      "title": "UAV Wing — Abrupt Stall",
+      "difficulty": "easy",
+      "domain": "External Aerodynamics",
+      "tags": ["stall", "UAV", "camber", "low-speed"],
+      "bottleneck": "You are designing a fixed-wing UAV using a NACA 2412 airfoil. At cruise (Re = 500,000, α = 4°) it achieves CL = 0.8 — acceptable. But at α = 12° it stalls abruptly, making recovery unpredictable and unsafe.\n\nYour constraint: cruise CL must stay above 0.75. Find a geometry modification that smooths the stall without sacrificing cruise performance.",
+      "hint": "Increasing camber delays separation — try the 6-series NACA family.",
+      "success_criteria": {
+        "stall_angle_improvement": 3,
+        "cruise_CL_min": 0.75
+      },
+      "starting_airfoil": "naca2412",
+      "design_alpha": 4,
+      "Re": 500000,
+      "mach": 0.1
+    },
+    {
+      "id": "thickness-efficiency-001",
+      "title": "Regional Transport — Symmetric Airfoil Penalty",
+      "difficulty": "medium",
+      "domain": "External Aerodynamics",
+      "tags": ["L/D", "camber", "efficiency", "cruise"],
+      "bottleneck": "A regional transport wing section uses a NACA 0015 symmetric airfoil inherited from an older design. At cruise conditions (Re = 1,500,000, α = 4°) it achieves L/D = 62 and CL = 0.42 — both below targets. The aerodynamics team needs L/D > 90 and CL > 0.6 simultaneously to meet range and payload requirements.\n\nConstraint: the solution must work at α = 4° without modification to the cruise angle. Find the airfoil geometry that closes both gaps at once.",
+      "hint": "Symmetric airfoils generate less lift per unit drag than cambered ones at the same angle.",
+      "success_criteria": {
+        "target_LD": 90,
+        "cruise_CL_min": 0.6
+      },
+      "starting_airfoil": "naca0015",
+      "design_alpha": 4,
+      "Re": 1500000,
+      "mach": 0.15
+    },
+    {
+      "id": "low-re-multi-constraint-001",
+      "title": "Micro-UAV — Low Reynolds Dual Constraint",
+      "difficulty": "hard",
+      "domain": "Low Reynolds Aerodynamics",
+      "tags": ["low-Re", "separation", "micro-UAV", "CL", "L/D"],
+      "bottleneck": "A micro-UAV wing operates deep in the low Reynolds number regime (Re = 100,000) where laminar separation bubbles dominate and conventional design intuition breaks down. The current NACA 0012 achieves L/D = 25 and CL = 0.65 at the design point (α = 6°).\n\nThe mission requires simultaneously: L/D > 20 to meet endurance targets AND CL > 0.8 to maintain level flight at low speed. These constraints conflict — increasing camber raises CL but drag rises steeply at low Re.\n\nFind the airfoil geometry that satisfies both constraints at Re = 100,000, α = 6°.",
+      "hint": "At low Reynolds numbers, thin highly-cambered airfoils outperform thick ones — conventional wisdom reverses.",
+      "success_criteria": {
+        "target_LD": 20,
+        "cruise_CL_min": 0.8
+      },
+      "starting_airfoil": "naca0012",
+      "design_alpha": 6,
+      "Re": 100000,
+      "mach": 0.05
+    }
+  ]
+}

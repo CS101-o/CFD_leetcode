@@ -43,17 +43,17 @@ class NeuralFoilPredictor:
             'solver': 'NeuralFoil'
         }
     
-    def predict_polar(self, coordinates, alpha_range: Tuple[float, float], alpha_step: float, reynolds: float) -> List[Dict]:
+    def predict_polar(self, coordinates, alpha_range: Tuple[float, float], alpha_step: float, reynolds: float, mach: float = 0.0) -> List[Dict]:
         """Generate polar curve data"""
         results = []
         alpha_min, alpha_max = alpha_range
         alphas = np.arange(alpha_min, alpha_max + alpha_step, alpha_step)
-        
+
         for alpha in alphas:
-            result = self.predict(coordinates, alpha, reynolds)
+            result = self.predict(coordinates, alpha, reynolds, mach)
             result['alpha'] = float(alpha)
             results.append(result)
-        
+
         return results
     
     def optimize_for_ld(self, base_coordinates, reynolds: float, alpha: float, n_iterations: int) -> Dict:

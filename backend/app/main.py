@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.api.endpoints import agent, simulations, chat
+from app.api.endpoints.flowsense import router as flowsense_router
 
 app = FastAPI(
     title=settings.APP_NAME, 
@@ -21,6 +22,7 @@ app.add_middleware(
 app.include_router(agent.router, prefix=f"{settings.API_V1_PREFIX}/agent", tags=["Agent"])
 app.include_router(simulations.router, prefix=f"{settings.API_V1_PREFIX}/simulations", tags=["Simulations"])
 app.include_router(chat.router, prefix=f"{settings.API_V1_PREFIX}/chat", tags=["Chat"])
+app.include_router(flowsense_router, prefix=f"{settings.API_V1_PREFIX}/flowsense", tags=["flowsense"])
 
 @app.get("/")
 async def root():
