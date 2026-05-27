@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>FlowSense — Observation Panel</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #09090b; color: #e4e4e7; font-family: monospace; font-size: 13px; }
+    header { padding: 16px 24px; border-bottom: 1px solid #27272a; display: flex; align-items: center; gap: 16px; }
+    header h1 { font-size: 14px; letter-spacing: 0.1em; color: #60a5fa; }
+    header span { color: #52525b; font-size: 11px; }
+    #gate { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 80vh; gap: 12px; }
+    #gate input { background: #18181b; border: 1px solid #3f3f46; color: #e4e4e7; padding: 8px 14px; border-radius: 6px; font-family: monospace; width: 260px; outline: none; }
+    #gate button { background: #2563eb; color: white; border: none; padding: 8px 20px; border-radius: 6px; cursor: pointer; font-family: monospace; letter-spacing: 0.05em; }
+    #app { display: none; padding: 16px 24px; }
+    .sessions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
+    .session-chip { background: #18181b; border: 1px solid #3f3f46; border-radius: 6px; padding: 8px 12px; cursor: pointer; transition: border-color 0.15s; }
+    .session-chip:hover, .session-chip.active { border-color: #60a5fa; }
+    .session-chip .pid { color: #60a5fa; font-weight: bold; font-size: 12px; }
+    .session-chip .meta { color: #71717a; font-size: 11px; margin-top: 2px; }
+    #log { background: #18181b; border: 1px solid #27272a; border-radius: 8px; padding: 16px; max-height: calc(100vh - 220px); overflow-y: auto; }
+    .event { padding: 8px 0; border-bottom: 1px solid #27272a; display: grid; grid-template-columns: 140px 130px 1fr; gap: 8px; align-items: start; }
+    .event:last-child { border-bottom: none; }
+    .ts { color: #52525b; font-size: 11px; }
+    .badge { font-size: 10px; font-weight: bold; letter-spacing: 0.08em; padding: 2px 6px; border-radius: 4px; white-space: nowrap; }
+    .badge-message_sent    { background: #1d4ed8; color: #bfdbfe; }
+    .badge-simulation_run  { background: #065f46; color: #6ee7b7; }
+    .badge-response_sent   { background: #4c1d95; color: #ddd6fe; }
+    .badge-session_start   { background: #7c2d12; color: #fed7aa; }
+    .badge-default         { background: #27272a; color: #a1a1aa; }
+    .detail { color: #a1a1aa; font-size: 11px; word-break: break-word; }
+    .detail strong { color: #e4e4e7; }
+    #status { font-size: 11px; color: #52525b; margin-bottom: 12px; }
+    #empty { color: #52525b; padding: 24px; text-align: center; }
+    .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #22c55e; margin-right: 6px; animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>FLOWSENSE OBSERVATION</h1>
+  <span id="header-status"></span>
+</header>
+
+<div id="gate">
+  <div style="color:#60a5fa;font-size:14px;letter-spacing:0.1em;margin-bottom:8px;">OBSERVER ACCESS</div>
+  <input id="key-input" type="password" placeholder="observation key" />
+  <button onclick="unlock()">Enter</button>
+  <div id="gate-error" style="color:#f87171;font-size:11px;height:16px;"></div>
+</div>
+
+<div id="app">
+  <div id="status"></div>
+  <div class="sessions" id="sessions"></div>
+  <div id="log"><div id="empty" style="display:none">No events yet.</div></div>
+</div>
+
+<script>
+  const API = window.location.origin + '/api/v1/flowsense';
+  let key = '';
+  let activeSession = null;
+  let pollTimer = null;
+
+  function unlock() {
+    key = document.getElementById('key-input').value.trim();
+    fetch(`${API}/observe/sessions?key=${encodeURIComponent(key)}`)
+      .then(r => {
+        if (!r.ok) throw new Error('bad key');
+        return r.json();
+      })
+      .then(() => {
+        document.getElementById('gate').style.display = 'none';
+        document.getElementById('app').style.display = 'block';
+        document.getElementById('header-status').innerHTML = '<span class="dot"></span>LIVE';
+        startPolling();
+      })
+      .catch(() => {
+        document.getElementById('gate-error').textContent = 'Invalid key.';
+      });
+  }
+
+  document.getElementById('key-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') unlock();
+  });
+
+  function startPolling() {
+    refreshSessions();
+    if (activeSession) refreshLog(activeSession);
+    pollTimer = setTimeout(startPolling, 3000);
+  }
+
+  function refreshSessions() {
+    fetch(`${API}/observe/sessions?key=${encodeURIComponent(key)}`)
+      .then(r => r.json())
+      .then(data => {
+        const sessions = data.sessions || [];
+        const container = document.getElementById('sessions');
+        const now = new Date().toLocaleTimeString();
+        document.getElementById('status').innerHTML =
+          `<span class="dot"></span>${sessions.length} session(s) · refreshed ${now}`;
+
+        // preserve active selection
+        const prev = activeSession;
+        container.innerHTML = '';
+        if (sessions.length === 0) {
+          container.innerHTML = '<span style="color:#52525b;font-size:11px;">No sessions yet.</span>';
+          return;
+        }
+        sessions.forEach(s => {
+          const chip = document.createElement('div');
+          chip.className = 'session-chip' + (s.session_id === prev ? ' active' : '');
+          chip.innerHTML = `
+            <div class="pid">${s.participant_id}</div>
+            <div class="meta">${s.problem_title}</div>
+            <div class="meta">${s.event_count} events</div>
+          `;
+          chip.onclick = () => selectSession(s.session_id);
+          container.appendChild(chip);
+        });
+
+        if (!activeSession && sessions.length > 0) {
+          selectSession(sessions[sessions.length - 1].session_id);
+        }
+      })
+      .catch(() => {});
+  }
+
+  function selectSession(sid) {
+    activeSession = sid;
+    document.querySelectorAll('.session-chip').forEach(c => c.classList.remove('active'));
+    document.querySelectorAll('.session-chip').forEach(c => {
+      if (c.querySelector('.pid') && c.onclick) {
+        // re-render will handle this
+      }
+    });
+    refreshLog(sid);
+  }
+
+  function refreshLog(sid) {
+    fetch(`${API}/observe/session/${sid}?key=${encodeURIComponent(key)}`)
+      .then(r => r.json())
+      .then(data => {
+        const events = data.events || [];
+        const log = document.getElementById('log');
+        const empty = document.getElementById('empty');
+
+        if (events.length === 0) {
+          log.innerHTML = '';
+          log.appendChild(empty);
+          empty.style.display = 'block';
+          return;
+        }
+        empty.style.display = 'none';
+
+        const wasAtBottom = log.scrollHeight - log.scrollTop <= log.clientHeight + 40;
+
+        log.innerHTML = events.map(e => {
+          const ts = new Date(e.timestamp).toLocaleTimeString();
+          const badgeClass = `badge-${e.event}`;
+          const detail = formatDetail(e);
+          return `
+            <div class="event">
+              <span class="ts">${ts}</span>
+              <span class="badge ${badgeClass in getComputedStyle(document.body) ? badgeClass : 'badge badge-default'}"
+                    style="display:inline-block">${e.event}</span>
+              <span class="detail">${detail}</span>
+            </div>`;
+        }).join('');
+
+        if (wasAtBottom) log.scrollTop = log.scrollHeight;
+      })
+      .catch(() => {});
+  }
+
+  function formatDetail(e) {
+    switch (e.event) {
+      case 'session_start':
+        return `<strong>${e.participant_id}</strong> started · ${e.problem_title} (${e.difficulty})`;
+      case 'message_sent':
+        return `<strong>→</strong> ${escHtml(e.message)}`;
+      case 'simulation_run':
+        const tools = (e.tools_called || []).join(', ');
+        const res = e.results_summary || {};
+        const nums = ['CL','CD','L_D'].filter(k => res[k] !== undefined)
+          .map(k => `${k}=${typeof res[k] === 'number' ? res[k].toFixed(3) : res[k]}`).join(' · ');
+        return `<strong>${tools}</strong>${nums ? ' — ' + nums : ''}`;
+      case 'response_sent':
+        const t = (e.tools_called || []).join(', ');
+        return t ? `tools: ${t}` : 'direct response';
+      default:
+        return JSON.stringify(e).slice(0, 120);
+    }
+  }
+
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+</script>
+</body>
+</html>

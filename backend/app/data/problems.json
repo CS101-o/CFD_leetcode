@@ -15,7 +15,14 @@
       "starting_airfoil": "naca2412",
       "design_alpha": 4,
       "Re": 500000,
-      "mach": 0.1
+      "mach": 0.1,
+      "interview_questions": [
+        "Run a baseline polar sweep and tell me: where does the NACA 2412 stall, and what does the CL curve look like near stall?",
+        "What does the shape of that stall curve tell you about the separation behaviour? Is it gradual or abrupt?",
+        "Which geometry parameter would you change to soften the stall, and what physical effect are you expecting?",
+        "Run the airfoil you have in mind and compare its stall behaviour to the baseline. What changed?",
+        "Does your modified airfoil still meet the cruise CL requirement? How do you know?"
+      ]
     },
     {
       "id": "thickness-efficiency-001",
@@ -32,7 +39,14 @@
       "starting_airfoil": "naca0015",
       "design_alpha": 4,
       "Re": 1500000,
-      "mach": 0.15
+      "mach": 0.15,
+      "interview_questions": [
+        "Run a baseline on the NACA 0015. Which of the two gaps — L/D or CL — is larger relative to the target?",
+        "Why do you think a symmetric airfoil underperforms at a fixed angle of attack? What geometry feature is it missing?",
+        "What single geometry change would you expect to close both gaps simultaneously, and why?",
+        "Run your candidate airfoil. Did both metrics improve as expected, or did one trade off against the other?",
+        "How sensitive is the result to small changes in camber? Use Monte Carlo or compare two nearby candidates."
+      ]
     },
     {
       "id": "low-re-multi-constraint-001",
@@ -49,7 +63,38 @@
       "starting_airfoil": "naca0012",
       "design_alpha": 6,
       "Re": 100000,
-      "mach": 0.05
+      "mach": 0.05,
+      "interview_questions": [
+        "Run the baseline NACA 0012 polar. How does the L/D vs alpha curve differ from what you would expect at Re = 1,000,000?",
+        "At Re = 100,000, what happens to the boundary layer that makes thick airfoils less effective?",
+        "Your instinct might say more camber helps CL — does adding camber also hurt L/D at this Reynolds number? Test it.",
+        "After your first candidate, what surprised you most about the result compared to your prediction?",
+        "Run a Monte Carlo on your best candidate. How robust is the performance to small geometry variations at this Reynolds number?"
+      ]
+    },
+    {
+      "id": "solar-uav-pareto-001",
+      "title": "Solar UAV — Efficiency-Lift Pareto Problem",
+      "difficulty": "hard",
+      "domain": "High-Altitude Long-Endurance",
+      "tags": ["L/D", "CL", "Pareto", "tradeoff", "camber", "thickness"],
+      "bottleneck": "A solar-powered surveillance UAV wing uses NACA 2412 at cruise (Re = 600,000, α = 3°, Mach = 0.09). It achieves L/D = 82 and CL = 0.58 — below both mission targets. The mission demands L/D > 95 (endurance budget) AND CL > 0.75 (weight budget) simultaneously at the same operating point.\n\nThe trap: increasing camber raises CL but adds profile drag, capping L/D. Reducing thickness cuts drag and boosts L/D but limits maximum lift. Every single-parameter change helps one metric while hurting the other.\n\nThe design space contains multiple candidate airfoils that partially meet the targets — but only certain camber-thickness combinations clear both gaps at once. Find the geometry that lies on the right side of the tradeoff frontier.",
+      "hint": "Map the L/D vs CL tradeoff across several camber and thickness combinations before narrowing down. The Pareto frontier will show you which candidates dominate.",
+      "success_criteria": {
+        "target_LD": 95,
+        "cruise_CL_min": 0.75
+      },
+      "starting_airfoil": "naca2412",
+      "design_alpha": 3,
+      "Re": 600000,
+      "mach": 0.09,
+      "interview_questions": [
+        "Run a baseline polar on the NACA 2412. Which of the two targets — L/D or CL — is further from being met at the cruise point?",
+        "If you increase camber to fix the CL gap, what do you expect to happen to L/D? Why?",
+        "Try a candidate that addresses your primary concern. Did the other metric move in the direction you expected?",
+        "You are now navigating a tradeoff. How are you deciding which combinations to test next — what is your search strategy?",
+        "Run a Monte Carlo on your best candidate. Does the uncertainty analysis change which geometry you would commit to?"
+      ]
     }
   ]
 }

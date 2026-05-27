@@ -1,10 +1,14 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 from typing import Optional
 import json
 import os
 
+from app.services.session_logger import log_event, get_all_sessions, get_session
+
 router = APIRouter()
+
+_OBSERVE_KEY = os.environ.get("OBSERVE_KEY", "observe2026")
 
 
 def load_problems():
@@ -15,6 +19,8 @@ def load_problems():
 
 class StartSessionRequest(BaseModel):
     problem_id: str
+    session_id: str
+    participant_id: str
 
 
 class FlowSenseMessageRequest(BaseModel):
@@ -22,14 +28,14 @@ class FlowSenseMessageRequest(BaseModel):
     message: str
     conversation_history: list
     current_results: Optional[dict] = None
+    session_id: Optional[str] = None
+    participant_id: Optional[str] = None
 
 
 def _build_success_check(problem: dict) -> str:
-    """Build an explicit, numeric success-check instruction from a problem's criteria."""
     criteria = problem["success_criteria"]
     alpha = problem.get("design_alpha", "cruise")
     lines = []
-
     if "target_LD" in criteria:
         lines.append(f"- Is the latest L/D >= {criteria['target_LD']}?")
     if "cruise_CL_min" in criteria:
@@ -39,11 +45,14 @@ def _build_success_check(problem: dict) -> str:
             f"- Has the stall angle improved by at least {criteria['stall_angle_improvement']}° "
             f"compared to the baseline, while cruise CL stays >= {criteria.get('cruise_CL_min', 'N/A')}?"
         )
-
     lines.append("- If ALL of the above are true: the bottleneck is solved.")
     lines.append("- If any are false: state which criterion failed and by exactly how much.")
     return "\n".join(lines)
 
+
+# ------------------------------------------------------------------
+# Problem endpoints
+# ------------------------------------------------------------------
 
 @router.get("/problems")
 def get_problems():
@@ -59,65 +68,99 @@ def get_problem(problem_id: str):
     return problem
 
 
+# ------------------------------------------------------------------
+# Session lifecycle
+# ------------------------------------------------------------------
+
+@router.post("/session/start")
+def start_session(req: StartSessionRequest):
+    problems = load_problems()
+    problem = next((p for p in problems if p["id"] == req.problem_id), None)
+    if not problem:
+        raise HTTPException(status_code=404, detail="Problem not found")
+    log_event(req.session_id, "session_start", {
+        "participant_id": req.participant_id,
+        "problem_id": req.problem_id,
+        "problem_title": problem["title"],
+        "difficulty": problem["difficulty"],
+    })
+    return {"status": "ok"}
+
+
+# ------------------------------------------------------------------
+# Chat / simulation
+# ------------------------------------------------------------------
+
 @router.post("/message")
 async def flowsense_message(request: FlowSenseMessageRequest):
     from app.services.llm_service import LLMService
-    from app.services.llm_tools import SYSTEM_PROMPT
 
     problems = load_problems()
     problem = next((p for p in problems if p["id"] == request.problem_id), None)
     if not problem:
         raise HTTPException(status_code=404, detail="Problem not found")
 
-    # --- ACTION STEP SYSTEM PROMPT ---
-    # Keep the original strict JSON-only format from SYSTEM_PROMPT so the 7B
-    # model reliably outputs a tool call. Append only the problem facts
-    # (no phase prose) so the model knows what conditions to test.
-    action_system = SYSTEM_PROMPT + f"""
+    sid = request.session_id or "unknown"
+    pid = request.participant_id or "unknown"
 
-## ACTIVE BOTTLENECK CONTEXT
-Problem: {problem['title']}
-Starting airfoil: {problem['starting_airfoil'].replace('naca', 'NACA ')}
+    log_event(sid, "message_sent", {
+        "participant_id": pid,
+        "problem_id": request.problem_id,
+        "message": request.message,
+        "history_length": len(request.conversation_history),
+    })
+
+    starting = problem['starting_airfoil'].replace('naca', '')
+    questions = problem.get('interview_questions', [])
+    questions_block = "\n".join(f"{i+1}. {q}" for i, q in enumerate(questions))
+    action_system = f"""You are FlowSense, a research interviewer studying how engineers use aerodynamic surrogate models.
+
+PROBLEM: {problem['title']}
+Starting airfoil: NACA {starting}
 Operating conditions: Re={problem['Re']}, Mach={problem['mach']}
 Success criteria: {json.dumps(problem['success_criteria'])}
 
-When the user asks to diagnose, run a polar sweep on the starting airfoil at the
-operating Reynolds number to establish the baseline. Always use the exact Re and
-Mach from the context above unless the user specifies otherwise.
+INTERVIEW QUESTIONS (work through these in order):
+{questions_block}
 
-If the conversation history shows that FlowSense previously suggested a tool call
-(modify_geometry, compare_airfoils, run_simulation, run_polar_sweep, etc.) but it
-was not executed, execute that tool now when the user asks for the next step or
-asks what to try next.
+YOUR ROLE:
+- You are an interviewer, not a teacher. Your job is to understand how the engineer thinks.
+- Start immediately with question 1. Do not explain the problem first.
+- Ask one interview question at a time. Wait for a substantive response before moving to the next.
+- A response is substantive when the engineer has run a simulation or MC that addresses the question, or has given a reasoned answer.
+- Do NOT advance to the next question if the engineer has only said something vague or confirmatory.
 
-If the user asks "what did we learn" or "what should we try next", run the
-previously suggested tool rather than repeating the same synthesis."""
+RULES:
+1. Only call a simulation tool when the user message contains an explicit 4-digit NACA code (e.g. "run 4412", "sweep NACA 5409"). If no 4-digit code is present, do NOT call any tool.
+2. If the user wants to run something but has not named a specific 4-digit airfoil, respond only with: "Which airfoil would you like to test?" Do not suggest one.
+3. For a baseline: run_polar_sweep on NACA {starting}, Re={problem['Re']}, Mach={problem['mach']}, alpha -5 to 15.
+4. Always use Re={problem['Re']} and Mach={problem['mach']} unless the user explicitly overrides.
+5. Never fabricate CL, CD, or L/D numbers. All data comes from tool results only.
+6. Keep all free-text responses to 2–3 sentences maximum. No headers, no bullet points.
+7. Do NOT re-run a simulation already in conversation history.
+8. Never call modify_geometry or generate_airfoil unless the user explicitly asks for geometry modification or coordinate generation."""
 
-    # --- SUMMARY STEP INSTRUCTION ---
-    # This is injected ONLY into the summary step (step 3), where prose is wanted.
-    # The model has already executed the tool; now synthesise like FlowSense.
-    synthesis_instruction = f"""You are FlowSense, an aerodynamic experimentation intelligence.
+    synthesis_instruction = f"""You are FlowSense, a research interviewer studying engineering problem-solving.
 
-The engineer is solving this bottleneck:
 PROBLEM: {problem['title']}
-BOTTLENECK: {problem['bottleneck']}
 SUCCESS CRITERIA: {json.dumps(problem['success_criteria'])}
 
-Now that the simulation results are in, provide a FlowSense synthesis:
+INTERVIEW QUESTIONS (in order):
+{questions_block}
 
-DIAGNOSIS — What do the numbers reveal about the physical root cause?
-EXPERIMENT INSIGHT — What did this run confirm or rule out?
-TOP FINDINGS — List the 2–3 most important numbers and what they mean physically.
-NEXT EXPERIMENT — Propose the exact next experiment in plain words (specific NACA code, Re, alpha range). Example: "Next, run a polar sweep on NACA 6412 from -2 to 18 degrees at Re=1,500,000."
+A simulation just ran. Use ONLY these sections:
 
-SUCCESS CHECK — You must now evaluate whether the bottleneck is solved. Look at the simulation results and check each criterion numerically:
+RESULTS — Key numbers only. For a polar sweep: cruise point (α={problem.get('design_alpha', 4)}°) CL and L/D, plus peak L/D. For single-point: CL, CD, L/D. For Monte Carlo: P50 CL and L/D with P10–P90 range. Maximum 3 lines. No interpretation.
+  Exception: if Monte Carlo, add CANDIDATE EXPERIMENTS listing the top 3–5 high-value experiments (airfoil, predicted L/D, predicted CL) and ask: "Which of these would you like to investigate?"
+
+NEXT QUESTION — Look at the conversation history and identify which interview question has not yet received a substantive answer. Ask that question now, in one sentence. Do not repeat a question already answered. If all questions are answered and the bottleneck is solved, ask: "Now that you've solved it, what was the key insight that got you there?"
+
+SUCCESS CHECK — Check each criterion numerically:
 {_build_success_check(problem)}
-If ALL criteria above are met: respond with "🎯 BOTTLENECK SOLVED" followed by the airfoil name and the exact achieved values for every criterion.
-If any criterion is unmet: state which one failed, by how much (e.g. "L/D = 74, need 90 — gap of 16"), and do not claim the bottleneck is solved.
-Do not output template text. Actually do the comparison with the numbers in front of you and state the result explicitly.
-Do not suggest further experiments if the bottleneck is solved.
+If ALL criteria are met: write "✓ BOTTLENECK SOLVED — [airfoil] achieves L/D=[X] and CL=[Y] at α={problem.get('design_alpha', 4)}°."
+If any fail: write "✗ Not solved — [which criterion], gap of [amount]."
 
-CRITICAL: Your response must be plain text only. Do not include JSON blocks, code fences, or tool call syntax. If you want to suggest a next experiment, describe it in words — never as a JSON block."""
+Plain text only. No JSON, no code fences."""
 
     llm = LLMService()
     llm.system_prompt = action_system
@@ -125,8 +168,57 @@ CRITICAL: Your response must be plain text only. Do not include JSON blocks, cod
     response = await llm.chat(
         message=request.message,
         conversation_history=request.conversation_history,
-        current_results=request.current_results,
         summary_instruction=synthesis_instruction,
     )
 
+    if response.get("simulation_triggered") and response.get("simulation_results"):
+        sim = response["simulation_results"]
+        log_event(sid, "simulation_run", {
+            "participant_id": pid,
+            "problem_id": request.problem_id,
+            "tools_called": response.get("tools_called", []),
+            "results_summary": {
+                k: v for k, v in (sim or {}).items()
+                if k not in ("coordinates", "polar_data")
+            },
+        })
+
+    log_event(sid, "response_sent", {
+        "participant_id": pid,
+        "problem_id": request.problem_id,
+        "simulation_triggered": response.get("simulation_triggered", False),
+        "tools_called": response.get("tools_called", []),
+    })
+
     return response
+
+
+# ------------------------------------------------------------------
+# Observation endpoints (wizard-only, key-gated)
+# ------------------------------------------------------------------
+
+@router.get("/observe/sessions")
+def observe_sessions(key: str = Query("")):
+    if key != _OBSERVE_KEY:
+        raise HTTPException(status_code=403, detail="Invalid key")
+    sessions = get_all_sessions()
+    summary = []
+    for s in sessions:
+        events = s["events"]
+        start = next((e for e in events if e["event"] == "session_start"), {})
+        summary.append({
+            "session_id": s["session_id"],
+            "participant_id": start.get("participant_id", "?"),
+            "problem_title": start.get("problem_title", "?"),
+            "event_count": len(events),
+            "started_at": events[0]["timestamp"] if events else None,
+            "last_event_at": events[-1]["timestamp"] if events else None,
+        })
+    return {"sessions": summary}
+
+
+@router.get("/observe/session/{session_id}")
+def observe_session(session_id: str, key: str = Query("")):
+    if key != _OBSERVE_KEY:
+        raise HTTPException(status_code=403, detail="Invalid key")
+    return {"events": get_session(session_id)}

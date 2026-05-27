@@ -33,6 +33,7 @@ class ToolExecutor:
             "optimize_airfoil": self._optimize_airfoil,
             "modify_geometry": self._modify_geometry,
             "explain_concept": self._explain_concept,
+            "run_monte_carlo": self._run_monte_carlo,
         }
 
         handler = handlers.get(tool_name)
@@ -329,6 +330,154 @@ class ToolExecutor:
             "modification": modification_type,
             "value": value,
             "coordinates": coords.tolist()
+        }
+
+    # ------------------------------------------------------------------
+    # Monte Carlo
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _naca4_coords(m: float, p: float, t: float, n: int = 100) -> np.ndarray:
+        """NACA 4-digit with continuous (non-integer) parameters."""
+        x = (1 - np.cos(np.linspace(0, np.pi, n))) / 2
+        yt = 5 * t * (
+            0.2969 * np.sqrt(np.maximum(x, 0))
+            - 0.1260 * x
+            - 0.3516 * x ** 2
+            + 0.2843 * x ** 3
+            - 0.1015 * x ** 4
+        )
+        if m < 1e-4 or p < 1e-4:
+            yc = np.zeros_like(x)
+            dyc = np.zeros_like(x)
+        else:
+            yc = np.where(
+                x < p,
+                m / p ** 2 * (2 * p * x - x ** 2),
+                m / (1 - p) ** 2 * ((1 - 2 * p) + 2 * p * x - x ** 2),
+            )
+            dyc = np.where(
+                x < p,
+                2 * m / p ** 2 * (p - x),
+                2 * m / (1 - p) ** 2 * (p - x),
+            )
+        theta = np.arctan(dyc)
+        xu = x - yt * np.sin(theta);  yu = yc + yt * np.cos(theta)
+        xl = x + yt * np.sin(theta);  yl = yc - yt * np.cos(theta)
+        return np.vstack([
+            np.column_stack([xl[::-1], yl[::-1]]),
+            np.column_stack([xu[1:], yu[1:]]),
+        ]).astype(np.float64)
+
+    def _run_monte_carlo(
+        self,
+        naca_designation: str,
+        alpha: float = 4.0,
+        reynolds_number: float = 1_000_000,
+        mach_number: float = 0.0,
+        n_samples: int = 300,
+        perturbation_pct: float = 1.0,
+        perturb_camber: bool = True,
+        perturb_thickness: bool = True,
+        perturb_alpha: bool = False,
+        alpha_std: float = 0.5,
+    ) -> Dict[str, Any]:
+        code = str(naca_designation).zfill(4)
+        m_nom = int(code[0]) / 100.0
+        p_nom = int(code[1]) / 10.0 or 0.4
+        t_nom = int(code[2:]) / 100.0
+        sigma = perturbation_pct / 100.0
+        n_samples = max(50, min(n_samples, 2000))
+
+        CLs, L_Ds, d_ms, d_ts, d_as = [], [], [], [], []
+        start = time.time()
+
+        for _ in range(n_samples):
+            dm = float(np.random.normal(0, sigma)) if perturb_camber else 0.0
+            dt = float(np.random.normal(0, sigma)) if perturb_thickness else 0.0
+            da = float(np.random.normal(0, alpha_std)) if perturb_alpha else 0.0
+            m = max(0.0, m_nom + dm)
+            t = max(0.04, t_nom + dt)
+            a = alpha + da
+            try:
+                coords = self._naca4_coords(m, p_nom, t)
+                r = self.predictor.predict(
+                    coordinates=coords, alpha=a,
+                    reynolds=reynolds_number, mach=mach_number,
+                )
+                if r["CD"] > 1e-6:
+                    CLs.append(r["CL"])
+                    L_Ds.append(r["L_D"])
+                    d_ms.append(dm); d_ts.append(dt); d_as.append(da)
+            except Exception:
+                pass
+
+        if not CLs:
+            return {"status": "error", "message": "All samples failed"}
+
+        CLs = np.array(CLs); L_Ds = np.array(L_Ds)
+        d_ms = np.array(d_ms); d_ts = np.array(d_ts); d_as = np.array(d_as)
+
+        def pct(arr):
+            return {
+                "p10": round(float(np.percentile(arr, 10)), 4),
+                "p25": round(float(np.percentile(arr, 25)), 4),
+                "p50": round(float(np.percentile(arr, 50)), 4),
+                "p75": round(float(np.percentile(arr, 75)), 4),
+                "p90": round(float(np.percentile(arr, 90)), 4),
+                "mean": round(float(np.mean(arr)), 4),
+                "std": round(float(np.std(arr)), 4),
+            }
+
+        def r2(x):
+            if np.std(x) < 1e-10:
+                return 0.0
+            return float(np.corrcoef(x, CLs)[0, 1] ** 2)
+
+        raw_sens = {}
+        if perturb_camber:   raw_sens["camber"]    = r2(d_ms)
+        if perturb_thickness: raw_sens["thickness"] = r2(d_ts)
+        if perturb_alpha:    raw_sens["alpha"]     = r2(d_as)
+        total = sum(raw_sens.values()) or 1
+        sensitivity = {k: round(v / total * 100, 1) for k, v in raw_sens.items()}
+
+        # Nearby unexplored NACA codes (high-value experiments)
+        candidates = []
+        for dm in range(-3, 4):
+            for dt in range(-3, 4):
+                new_m = max(0, int(round(m_nom * 100)) + dm)
+                new_t = max(4, min(21, int(round(t_nom * 100)) + dt))
+                p_d = int(p_nom * 10) if m_nom > 0 else 0
+                nc = f"{new_m}{p_d}{new_t:02d}"
+                if nc == code or len(nc) != 4:
+                    continue
+                try:
+                    coords = create_naca_airfoil(nc)
+                    r = self.predictor.predict(
+                        coordinates=coords, alpha=alpha,
+                        reynolds=reynolds_number, mach=mach_number,
+                    )
+                    if r["CD"] > 1e-6:
+                        candidates.append({
+                            "airfoil": nc,
+                            "CL": round(r["CL"], 4),
+                            "CD": round(r["CD"], 6),
+                            "L_D": round(r["L_D"], 2),
+                        })
+                except Exception:
+                    pass
+        candidates.sort(key=lambda x: (x["L_D"] or 0), reverse=True)
+
+        return {
+            "status": "success",
+            "airfoil": code,
+            "n_samples": len(CLs),
+            "time_ms": round((time.time() - start) * 1000, 1),
+            "alpha": alpha,
+            "reynolds": reynolds_number,
+            "distributions": {"CL": pct(CLs), "L_D": pct(L_Ds)},
+            "sensitivity": sensitivity,
+            "high_value_experiments": candidates[:5],
         }
 
     def _explain_concept(self, topic: str) -> Dict[str, Any]:
