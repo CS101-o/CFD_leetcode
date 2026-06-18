@@ -12,7 +12,7 @@ from google.genai import types
 from app.services.tool_executor import ToolExecutor
 
 def _model() -> str:
-    return os.environ.get("AI_MODEL", "gemini-2.0-flash")
+    return os.environ.get("AI_MODEL", "gemini-2.0-flash-001")
 
 _TOOLS = types.Tool(
     function_declarations=[
