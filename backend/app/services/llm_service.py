@@ -189,15 +189,19 @@ class LLMService:
             temperature=0.3,
             tools=[_TOOLS] if use_tools else None,
         )
-        try:
-            return await self.client.aio.models.generate_content(
-                model=_model(),
-                contents=contents,
-                config=config,
-            )
-        except Exception as e:
-            print(f"[Gemini] call failed (model={_model()}): {e}")
-            return None
+        import asyncio
+        for attempt in range(3):
+            try:
+                return await self.client.aio.models.generate_content(
+                    model=_model(),
+                    contents=contents,
+                    config=config,
+                )
+            except Exception as e:
+                print(f"[Gemini] call failed (model={_model()}, attempt={attempt+1}): {e}")
+                if attempt < 2:
+                    await asyncio.sleep(2 ** attempt)
+        return None
 
     async def chat(
         self,
