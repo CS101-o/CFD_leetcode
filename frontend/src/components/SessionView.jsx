@@ -273,13 +273,13 @@ export default function SessionView() {
 
   return (
     <>
-    <div className="flex flex-col md:flex-row h-full">
+    <div className="flex h-full">
 
-      {/* Left: 3D viz + problem brief */}
-      <div className="flex flex-col shrink-0 md:flex-1 md:shrink border-b md:border-b-0 md:border-r border-zinc-800 min-w-0">
+      {/* Left: 3D viz + problem brief — desktop only */}
+      <div className="hidden md:flex flex-1 border-r border-zinc-800 flex-col min-w-0">
 
-        {/* Session header — desktop only */}
-        <div className="hidden md:flex border-b border-zinc-800 px-4 py-3 items-center justify-between bg-zinc-950 shrink-0">
+        {/* Session header */}
+        <div className="border-b border-zinc-800 px-4 py-3 flex items-center justify-between bg-zinc-950 shrink-0">
           <div className="flex items-center gap-3">
             <button onClick={resetSession} className="text-zinc-500 hover:text-zinc-300 text-xs tracking-widest transition-colors">
               ← PROBLEMS
@@ -292,22 +292,22 @@ export default function SessionView() {
           </div>
         </div>
 
-        {/* 3D viz — fixed height on mobile, flex-1 on desktop */}
-        <div className="h-48 shrink-0 md:h-auto md:shrink md:flex-1 overflow-hidden">
+        {/* 3D viz */}
+        <div className="flex-1 overflow-hidden">
           <LeftPanel />
         </div>
 
-        {/* Drag handle — desktop only */}
+        {/* Drag handle */}
         {currentProblem && (
           <div
             onMouseDown={onDragStart}
-            className="hidden md:block h-1.5 bg-zinc-800 hover:bg-blue-500/50 cursor-row-resize shrink-0 transition-colors"
+            className="h-1.5 bg-zinc-800 hover:bg-blue-500/50 cursor-row-resize shrink-0 transition-colors"
           />
         )}
 
-        {/* Problem brief — desktop only */}
+        {/* Problem brief */}
         {currentProblem && (
-          <div style={{ height: briefHeight }} className="hidden md:flex bg-zinc-950 shrink-0 overflow-y-auto px-6 py-4 gap-8 items-start">
+          <div style={{ height: briefHeight }} className="bg-zinc-950 shrink-0 overflow-y-auto px-6 py-4 flex gap-8 items-start">
             <div className="shrink-0">
               <div className="text-xs text-zinc-600 tracking-widest mb-2">BASELINE</div>
               <div className="text-2xl font-mono font-bold text-blue-400">
@@ -346,6 +346,11 @@ export default function SessionView() {
           </button>
           <span className="text-zinc-700">|</span>
           <span className="text-xs text-zinc-400 truncate">{currentProblem?.title}</span>
+        </div>
+
+        {/* Mobile-only 3D view */}
+        <div className="md:hidden h-48 shrink-0 border-b border-zinc-800">
+          <LeftPanel />
         </div>
 
         {/* Tab nav */}
