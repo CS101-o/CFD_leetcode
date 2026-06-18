@@ -13,7 +13,7 @@ from app.api.endpoints.simulate import router as simulate_router
 
 app = FastAPI(
     title=settings.APP_NAME,
-    description="FlowSense — Aerospace Design Tool",
+    description="AirfoilLearner — Aerospace Design Tool",
     version="1.0.0",
 )
 

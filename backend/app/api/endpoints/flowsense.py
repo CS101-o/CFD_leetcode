@@ -113,7 +113,7 @@ async def flowsense_message(request: FlowSenseMessageRequest):
     starting = problem['starting_airfoil'].replace('naca', '')
     questions = problem.get('interview_questions', [])
     questions_block = "\n".join(f"{i+1}. {q}" for i, q in enumerate(questions))
-    action_system = f"""You are FlowSense, a research interviewer studying how engineers use aerodynamic surrogate models.
+    action_system = f"""You are AirfoilLearner, a research interviewer studying how engineers use aerodynamic surrogate models.
 
 PROBLEM: {problem['title']}
 Starting airfoil: NACA {starting}
@@ -137,10 +137,10 @@ RULES:
 4. Always use Re={problem['Re']} and Mach={problem['mach']} unless the user explicitly overrides.
 5. Never fabricate CL, CD, or L/D numbers. All data comes from tool results only.
 6. Keep all free-text responses to 2–3 sentences maximum. No headers, no bullet points.
-7. Do NOT re-run a simulation already in conversation history.
+7. If the user explicitly names a NACA code in their message (e.g. "run NACA 4412"), always run it — even if it appears in conversation history. Only skip a simulation if the user has NOT named the airfoil and the results are already in history.
 8. Never call modify_geometry or generate_airfoil unless the user explicitly asks for geometry modification or coordinate generation."""
 
-    synthesis_instruction = f"""You are FlowSense, a research interviewer studying engineering problem-solving.
+    synthesis_instruction = f"""You are AirfoilLearner, a research interviewer studying engineering problem-solving.
 
 PROBLEM: {problem['title']}
 SUCCESS CRITERIA: {json.dumps(problem['success_criteria'])}

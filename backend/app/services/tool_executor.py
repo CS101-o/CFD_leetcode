@@ -432,7 +432,7 @@ class ToolExecutor:
         def r2(x):
             if np.std(x) < 1e-10:
                 return 0.0
-            return float(np.corrcoef(x, CLs)[0, 1] ** 2)
+            return float(np.corrcoef(x, L_Ds)[0, 1] ** 2)
 
         raw_sens = {}
         if perturb_camber:   raw_sens["camber"]    = r2(d_ms)
