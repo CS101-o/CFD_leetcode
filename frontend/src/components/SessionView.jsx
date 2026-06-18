@@ -276,7 +276,7 @@ export default function SessionView() {
     <div className="flex flex-col md:flex-row h-full">
 
       {/* Left: 3D viz + problem brief */}
-      <div className="flex flex-col md:flex-1 border-b md:border-b-0 md:border-r border-zinc-800 min-w-0">
+      <div className="flex flex-col shrink-0 md:flex-1 md:shrink border-b md:border-b-0 md:border-r border-zinc-800 min-w-0">
 
         {/* Session header — desktop only */}
         <div className="hidden md:flex border-b border-zinc-800 px-4 py-3 items-center justify-between bg-zinc-950 shrink-0">
@@ -293,7 +293,7 @@ export default function SessionView() {
         </div>
 
         {/* 3D viz — fixed height on mobile, flex-1 on desktop */}
-        <div className="h-48 md:h-auto md:flex-1 overflow-hidden">
+        <div className="h-48 shrink-0 md:h-auto md:shrink md:flex-1 overflow-hidden">
           <LeftPanel />
         </div>
 
