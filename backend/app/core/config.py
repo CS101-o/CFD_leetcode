@@ -37,6 +37,9 @@ class Settings(BaseSettings):
         "http://localhost:3000",
         "https://cfd-leetcode-0-2.onrender.com",
         "https://airfoillearner.netlify.app",
+        "https://airfoillearner2.netlify.app",
+        "https://airfoillearner.com",
+        "https://www.airfoillearner.com",
     ]
 
     # ... rest of your config stays the same
