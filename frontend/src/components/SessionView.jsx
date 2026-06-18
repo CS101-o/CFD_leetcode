@@ -275,8 +275,8 @@ export default function SessionView() {
     <>
     <div className="flex h-full">
 
-      {/* Left: always 3D viz + problem brief */}
-      <div className="flex-1 border-r border-zinc-800 flex flex-col min-w-0">
+      {/* Left: 3D viz + problem brief — hidden on mobile */}
+      <div className="hidden md:flex flex-1 border-r border-zinc-800 flex-col min-w-0">
 
         {/* Session header */}
         <div className="border-b border-zinc-800 px-4 py-3 flex items-center justify-between bg-zinc-950 shrink-0">
@@ -336,8 +336,17 @@ export default function SessionView() {
         )}
       </div>
 
-      {/* Right: tool + chat panel */}
-      <div className="w-[460px] bg-zinc-900 flex flex-col shrink-0">
+      {/* Right: tool + chat panel — full width on mobile */}
+      <div className="w-full md:w-[460px] bg-zinc-900 flex flex-col shrink-0">
+
+        {/* Mobile-only header */}
+        <div className="md:hidden border-b border-zinc-800 px-4 py-3 flex items-center gap-3 bg-zinc-950 shrink-0">
+          <button onClick={resetSession} className="text-zinc-500 hover:text-zinc-300 text-xs tracking-widest transition-colors shrink-0">
+            ← PROBLEMS
+          </button>
+          <span className="text-zinc-700">|</span>
+          <span className="text-xs text-zinc-400 truncate">{currentProblem?.title}</span>
+        </div>
 
         {/* Tab nav */}
         <div className="border-b border-zinc-800 flex shrink-0">

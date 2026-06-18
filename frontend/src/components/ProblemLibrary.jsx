@@ -102,8 +102,8 @@ export default function ProblemLibrary() {
   return (
     <div className="flex h-full overflow-hidden">
 
-      {/* ── Left: CFD panel ── */}
-      <div className="w-1/2 bg-zinc-950 flex flex-col border-r border-zinc-800 relative">
+      {/* ── Left: CFD panel — hidden on mobile ── */}
+      <div className="hidden md:flex w-1/2 bg-zinc-950 flex-col border-r border-zinc-800 relative">
 
         {/* 3D canvas */}
         <div className="flex-1">
@@ -149,8 +149,8 @@ export default function ProblemLibrary() {
         )}
       </div>
 
-      {/* ── Right: problem list ── */}
-      <div className="w-1/2 flex flex-col bg-zinc-900 overflow-hidden">
+      {/* ── Right: problem list — full width on mobile ── */}
+      <div className="w-full md:w-1/2 flex flex-col bg-zinc-900 overflow-hidden">
 
         <header className="border-b border-zinc-800 px-6 py-4 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
