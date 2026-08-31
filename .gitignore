@@ -133,3 +133,7 @@ frontend/dist/
 
 # Redis dumps
 dump.rdb
+
+# Module 01 user data (artifacts contain user text, signups contain emails)
+backend/app/data/artifacts/
+backend/app/data/signups.jsonl

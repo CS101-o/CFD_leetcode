@@ -7,6 +7,7 @@ import TableMode from './modes/TableMode'
 import ParetoMode from './modes/ParetoMode'
 import TargetMode from './modes/TargetMode'
 import MonteCarloMode from './modes/MonteCarloMode'
+import AIChatPopup from './AIChatPopup'
 
 const API_URL = import.meta.env.VITE_API_URL || '/api/v1'
 
@@ -126,14 +127,197 @@ function InlineCharts({ data, designAlpha }) {
   return null
 }
 
+function PrimerCard({ title, children }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className={`border rounded-lg overflow-hidden transition-colors ${open ? 'border-zinc-600' : 'border-zinc-800'}`}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between px-3 py-2 text-left bg-zinc-900 hover:bg-zinc-800/80 transition-colors"
+      >
+        <span className="text-[10px] font-bold tracking-widest text-zinc-400">{title}</span>
+        <span className={`text-zinc-600 text-base leading-none transition-transform ${open ? 'rotate-45' : ''}`}>+</span>
+      </button>
+      {open && (
+        <div className="px-3 pb-3 pt-2 bg-zinc-900 text-[11px] text-zinc-400 leading-relaxed flex flex-col gap-2 border-t border-zinc-800">
+          {children}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function AerodynamicsBackground({ problem }) {
+  return (
+    <div className="flex flex-col gap-1.5 mt-3">
+      <div className="text-[9px] text-zinc-700 tracking-widest">BACKGROUND READING</div>
+
+      <PrimerCard title="NACA 4-DIGIT AIRFOILS — READING THE CODE">
+        <p>Each digit describes the shape. Take NACA 2412: <b className="text-zinc-200">2</b> = max camber 2% chord;
+        <b className="text-zinc-200"> 4</b> = camber peak at 40% chord; <b className="text-zinc-200">12</b> = max thickness 12% chord.
+        Zero in the first digit (e.g. NACA 0012) means symmetric — no camber, no lift at zero angle of attack.
+        Adding camber shifts the lift curve upward, producing more lift at the same angle without changing the rigging.</p>
+      </PrimerCard>
+
+      <PrimerCard title="REYNOLDS NUMBER — WHAT IT MEANS FOR THIS PROBLEM">
+        <p>Re = V·c/ν — the ratio of inertial to viscous forces.
+        At Re = {problem.Re.toLocaleString()}, the boundary layer is thicker relative to chord and more sensitive to surface geometry than at the high-Re conditions (Re &gt; 10⁶) in most published data.
+        Running a simulation at the wrong Re and using those numbers directly is one of the most common mistakes in low-speed design.</p>
+        <div className="bg-zinc-950 border border-zinc-800 rounded px-2 py-1.5 font-mono text-[10px] text-zinc-300">
+          Re = V·c / ν &nbsp;·&nbsp; here Re ≈ {(problem.Re / 1e5).toFixed(1)}×10⁵
+        </div>
+      </PrimerCard>
+
+      <PrimerCard title="LIFT AND DRAG — THE TARGET NUMBERS">
+        <p><b className="text-zinc-200">CL (lift coefficient)</b> = L / (½ρV²c). It captures how hard the section is working aerodynamically, independent of size and speed. Camber and angle of attack are the primary levers.</p>
+        <p><b className="text-zinc-200">CD (profile drag)</b> = skin friction + pressure drag from any separated region. At low Re, even a modest increase in camber can thicken the boundary layer and raise CD noticeably — so lifting CL often has a drag cost.</p>
+        <p><b className="text-zinc-200">L/D</b> = CL/CD — the efficiency ratio. Maximising L/D means getting the most lift for the least drag, which directly determines range and endurance.</p>
+      </PrimerCard>
+
+      <PrimerCard title="THE DESIGN TRADE-OFF">
+        <p>More camber → higher CL at fixed angle of attack. But more camber steepens the adverse pressure gradient on the upper surface, which at low Re can trigger earlier flow separation and raise CD.
+        Thickness helps pressure recovery (which delays separation) but adds wetted area and form drag.
+        The task is finding the combination of camber and thickness that clears the target without trading too much drag.</p>
+        <div className="bg-zinc-950 border border-zinc-800 rounded px-2 py-1.5 text-[10px] text-zinc-500">
+          ↑ camber → ↑ CL (wanted) · risk ↑ CD<br/>
+          ↑ thickness → better separation resistance · ↑ wetted area<br/>
+          Wrong Re → numbers that don't apply to this aircraft
+        </div>
+      </PrimerCard>
+
+      {problem.hint && (
+        <PrimerCard title="PROBLEM HINT">
+          <p className="text-zinc-300">{problem.hint}</p>
+        </PrimerCard>
+      )}
+    </div>
+  )
+}
+
 const TOOLS = [
-  { id: 'chat',       label: 'CHAT' },
   { id: 'sliders',    label: 'SLIDERS' },
   { id: 'table',      label: 'TABLE' },
   { id: 'pareto',     label: 'PARETO' },
   { id: 'target',     label: 'TARGET' },
   { id: 'montecarlo', label: 'MC' },
 ]
+
+const GUIDE_ITEMS = [
+  {
+    key: 'sliders',
+    tag: 'SLIDERS',
+    color: 'text-blue-400',
+    tagColor: 'bg-blue-500/10 border-blue-500/30 text-blue-400',
+    icon: '⟷',
+    title: 'Single-point simulation',
+    desc: 'Pick a NACA code, set angle of attack and Reynolds number, and run one simulation. The 3-D wing updates and the tutor assesses your result automatically.',
+  },
+  {
+    key: 'table',
+    tag: 'TABLE',
+    color: 'text-zinc-300',
+    tagColor: 'bg-zinc-700/30 border-zinc-600/30 text-zinc-400',
+    icon: '≡',
+    title: 'Side-by-side comparison',
+    desc: 'Queue several airfoils and run them all at the same condition. Results appear as a sortable table — good for narrowing a shortlist.',
+  },
+  {
+    key: 'pareto',
+    tag: 'PARETO',
+    color: 'text-emerald-400',
+    tagColor: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400',
+    icon: '◌',
+    title: 'L/D vs CL scatter',
+    desc: 'Plots every run you\'ve done as a dot. Airfoils that dominate (high L/D and high CL) appear toward the top-right — use this to see where your search is heading.',
+  },
+  {
+    key: 'target',
+    tag: 'TARGET',
+    color: 'text-amber-400',
+    tagColor: 'bg-amber-500/10 border-amber-500/30 text-amber-400',
+    icon: '⊙',
+    title: 'Goal-directed search',
+    desc: 'Set a CL or L/D target and let the tool scan a range of airfoils for you. Useful once you know which direction to search.',
+  },
+  {
+    key: 'mc',
+    tag: 'MC',
+    color: 'text-purple-400',
+    tagColor: 'bg-purple-500/10 border-purple-500/30 text-purple-400',
+    icon: '∿',
+    title: 'Monte Carlo uncertainty',
+    desc: 'Runs the simulation many times with small random perturbations to angle of attack and Re. Shows P10–P90 bands so you can see how sensitive your design is to real-world variability.',
+  },
+  {
+    key: 'read',
+    tag: 'READ',
+    color: 'text-amber-300',
+    tagColor: 'bg-amber-500/10 border-amber-500/30 text-amber-300',
+    icon: '📖',
+    title: 'Background reading',
+    desc: 'Opens an aerodynamics primer — NACA digit meanings, Reynolds number, CL/CD definitions, and the camber–drag tradeoff. Tap again to hide.',
+  },
+  {
+    key: 'tutor',
+    tag: '✦ TUTOR',
+    color: 'text-blue-300',
+    tagColor: 'bg-blue-500/10 border-blue-500/30 text-blue-300',
+    icon: '✦',
+    title: 'AI Research Tutor',
+    desc: 'Floating popup in the bottom-right corner. Ask physics questions, request an explanation of your last run, or type "run NACA 4412" to trigger a simulation directly from chat. Auto-opens after every slider run.',
+  },
+]
+
+function GuidanceModal({ onClose }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+      <div className="bg-zinc-950 border border-zinc-700 rounded-2xl w-full max-w-lg max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-4 h-4 bg-blue-500 rotate-45 rounded-sm" />
+            <div>
+              <div className="text-xs font-bold tracking-widest text-zinc-100">HOW IT WORKS</div>
+              <div className="text-[10px] text-zinc-600 tracking-widest">TOOL REFERENCE</div>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-zinc-600 hover:text-zinc-300 text-xl leading-none transition-colors"
+          >
+            ×
+          </button>
+        </div>
+
+        {/* Items */}
+        <div className="flex-1 overflow-y-auto px-6 py-4 flex flex-col gap-4">
+          {GUIDE_ITEMS.map(item => (
+            <div key={item.key} className="flex gap-4 items-start">
+              <div className={`shrink-0 w-16 text-center border rounded-lg py-1 text-[10px] font-bold tracking-widest ${item.tagColor}`}>
+                {item.tag}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className={`text-xs font-bold mb-0.5 ${item.color}`}>{item.title}</div>
+                <div className="text-[11px] text-zinc-500 leading-relaxed">{item.desc}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-zinc-800 shrink-0 flex items-center justify-between">
+          <span className="text-[10px] text-zinc-600">Re-open anytime with the <b className="text-zinc-500">?</b> button</span>
+          <button
+            onClick={onClose}
+            className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold tracking-widest px-5 py-2 rounded-lg transition-colors"
+          >
+            GOT IT →
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export default function SessionView() {
   const {
@@ -150,11 +334,25 @@ export default function SessionView() {
     setActiveMode,
     markSolved,
     solvedProblems,
+    sessionStats,
+    results,
+    allResults,
+    addAiMessage,
+    setAiAssessing,
   } = useStore()
 
   const [input, setInput] = useState('')
   const [isChatLoading, setIsChatLoading] = useState(false)
+  const [readingOpen, setReadingOpen] = useState(false)
+  const [guidanceOpen, setGuidanceOpen] = useState(() => {
+    try { return !localStorage.getItem('al_guidance_seen') } catch { return true }
+  })
   const chatEndRef = useRef(null)
+
+  function closeGuidance() {
+    try { localStorage.setItem('al_guidance_seen', '1') } catch {}
+    setGuidanceOpen(false)
+  }
 
   const [briefHeight, setBriefHeight] = useState(220)
   const [expandedChart, setExpandedChart] = useState(null)
@@ -204,6 +402,130 @@ export default function SessionView() {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [chatMessages, isChatLoading])
 
+  // Welcome hint when session starts
+  const tutorWelcomeSent = useRef(false)
+  useEffect(() => {
+    if (!currentProblem || tutorWelcomeSent.current) return
+    tutorWelcomeSent.current = true
+    setAiAssessing(true)
+    axios.post(`${API_URL}/tutor/hint`, {
+      session_id: sessionId,
+      problem_id: currentProblem.id,
+      run_count: 0,
+      recent_results: [],
+      hint_type: 'welcome',
+    }).then(res => {
+      if (res.data.message) addAiMessage({ type: 'tutor', text: res.data.message })
+    }).catch(() => { setAiAssessing(false) })
+  }, [currentProblem])
+
+  // Auto-assess after every slider run
+  const lastAssessedRun = useRef(0)
+  useEffect(() => {
+    if (!currentProblem) return
+    if (!results || sessionStats.experimentsRun === 0) return
+    if (sessionStats.experimentsRun === lastAssessedRun.current) return
+    lastAssessedRun.current = sessionStats.experimentsRun
+    setAiAssessing(true)
+    axios.post(`${API_URL}/tutor/assess`, {
+      session_id: sessionId,
+      problem_id: currentProblem.id,
+      airfoil: results.airfoil || '????',
+      alpha: results.alpha ?? currentProblem.design_alpha ?? 4,
+      reynolds: results.reynolds ?? currentProblem.Re ?? 500000,
+      CL: results.CL,
+      CD: results.CD,
+      L_D: results.L_D ?? null,
+    }).then(res => {
+      addAiMessage({
+        type: 'assessment',
+        text: res.data.message,
+        compliance: res.data.compliance,
+        at_design: res.data.at_design_condition,
+        airfoil: results.airfoil || '????',
+        alpha: results.alpha ?? currentProblem.design_alpha ?? 4,
+        reynolds: results.reynolds ?? currentProblem.Re ?? 500000,
+      })
+    }).catch(() => { setAiAssessing(false) })
+  }, [sessionStats.experimentsRun])
+
+  // Progress hint every 3 runs while requirements still not fully met
+  const lastHintRun = useRef(0)
+  useEffect(() => {
+    if (!currentProblem || sessionStats.experimentsRun === 0) return
+    if (sessionStats.experimentsRun % 3 !== 0) return
+    if (sessionStats.experimentsRun === lastHintRun.current) return
+    const clMin = currentProblem.success_criteria?.cruise_CL_min
+    const recentPassing = allResults.slice(-3).every(r =>
+      (clMin == null || r.CL >= clMin)
+    )
+    if (recentPassing) return
+    lastHintRun.current = sessionStats.experimentsRun
+    const recent = allResults.slice(-3).map(r => ({
+      airfoil: r.airfoil || '????',
+      CL: r.CL,
+      cl_meets: clMin == null || r.CL >= clMin,
+      cd_meets: true,
+    }))
+    axios.post(`${API_URL}/tutor/hint`, {
+      session_id: sessionId,
+      problem_id: currentProblem.id,
+      run_count: sessionStats.experimentsRun,
+      recent_results: recent,
+      hint_type: 'progress',
+    }).then(res => {
+      if (res.data.message) addAiMessage({ type: 'tutor', text: res.data.message })
+    }).catch(() => {})
+  }, [sessionStats.experimentsRun])
+
+  function applySimResult(sim) {
+    let statsResult
+    if (Array.isArray(sim.polar_data)) {
+      statsResult = sim.polar_data.reduce((best, pt) =>
+        Math.abs(pt.alpha - (currentProblem?.design_alpha ?? 4)) < Math.abs(best.alpha - (currentProblem?.design_alpha ?? 4)) ? pt : best
+      )
+    } else {
+      statsResult = sim.results || sim
+    }
+    setResults({
+      CL: statsResult?.CL ?? sim.CL,
+      CD: statsResult?.CD ?? sim.CD,
+      L_D: statsResult?.L_D ?? sim.L_D,
+      time_ms: sim.time_ms,
+      coordinates: sim.coordinates,
+      airfoil: sim.airfoil || sim.best_ld,
+      conditions: sim.conditions,
+    })
+    if (Array.isArray(sim.polar_data)) setPolarData(sim.polar_data)
+    incrementStats(sim.polar_data?.length || sim.num_points || 1)
+  }
+
+  // Tutor popup handler — routes through FlowSense function-calling endpoint
+  async function onTutorSendMessage(userText, history) {
+    const conversationHistory = history
+      .filter(m => m.type === 'user' || m.type === 'tutor')
+      .map(m => ({ role: m.type === 'user' ? 'user' : 'assistant', content: m.text || '' }))
+
+    const res = await axios.post(`${API_URL}/flowsense/message`, {
+      problem_id: currentProblem.id,
+      message: userText,
+      conversation_history: conversationHistory,
+      current_results: null,
+      session_id: sessionId,
+      participant_id: participantId,
+    })
+
+    let simData = null
+    if (res.data.simulation_triggered && res.data.simulation_results) {
+      simData = res.data.simulation_results
+      applySimResult(simData)
+      if (res.data.response?.includes('✓ BOTTLENECK SOLVED') && !solvedProblems.has(currentProblem.id)) {
+        markSolved(currentProblem.id)
+      }
+    }
+    return { text: res.data.response, simData }
+  }
+
   const handleSend = async () => {
     if (!input.trim() || isChatLoading) return
     const userMessage = input.trim()
@@ -222,8 +544,8 @@ export default function SessionView() {
       })
 
       if (res.data.simulation_triggered && res.data.simulation_results) {
-        const sim = res.data.simulation_results
-        addChatMessage({ role: 'assistant', content: res.data.response, chartData: sim })
+        addChatMessage({ role: 'assistant', content: res.data.response, chartData: res.data.simulation_results })
+        applySimResult(res.data.simulation_results)
       } else {
         addChatMessage({ role: 'assistant', content: res.data.response })
       }
@@ -234,32 +556,6 @@ export default function SessionView() {
           role: 'assistant',
           content: `[${currentProblem.sender}]\n${currentProblem.mission_complete}`,
         })
-      }
-
-      if (res.data.simulation_triggered && res.data.simulation_results) {
-        const sim = res.data.simulation_results
-        // For polar sweeps pick the point closest to alpha=4 (design point); fallback to midpoint
-        let statsResult
-        if (Array.isArray(sim.polar_data)) {
-          statsResult = sim.polar_data.reduce((best, pt) =>
-            Math.abs(pt.alpha - 4) < Math.abs(best.alpha - 4) ? pt : best
-          )
-        } else {
-          statsResult = sim.results || sim
-        }
-
-        setResults({
-          CL: statsResult?.CL ?? sim.CL,
-          CD: statsResult?.CD ?? sim.CD,
-          L_D: statsResult?.L_D ?? sim.L_D,
-          time_ms: sim.time_ms,
-          coordinates: sim.coordinates,
-          airfoil: sim.airfoil || sim.best_ld,
-          conditions: sim.conditions,
-        })
-        if (Array.isArray(sim.polar_data)) setPolarData(sim.polar_data)
-        incrementStats(sim.polar_data?.length || sim.num_points || 1)
-
       }
     } catch (err) {
       addChatMessage({
@@ -273,6 +569,15 @@ export default function SessionView() {
 
   return (
     <>
+    {guidanceOpen && <GuidanceModal onClose={closeGuidance} />}
+    {currentProblem && (
+      <AIChatPopup
+        sessionId={sessionId}
+        runCount={sessionStats.experimentsRun}
+        label="RESEARCH TUTOR"
+        onSendMessage={onTutorSendMessage}
+      />
+    )}
     <div className="flex h-full">
 
       {/* Left: 3D viz + problem brief — desktop only */}
@@ -290,6 +595,13 @@ export default function SessionView() {
               {currentProblem?.difficulty?.toUpperCase()}
             </span>
           </div>
+          <button
+            onClick={() => setGuidanceOpen(true)}
+            title="How it works"
+            className="w-6 h-6 rounded-full border border-zinc-700 text-zinc-500 hover:text-zinc-200 hover:border-zinc-500 text-xs font-bold flex items-center justify-center transition-colors"
+          >
+            ?
+          </button>
         </div>
 
         {/* 3D viz */}
@@ -368,81 +680,33 @@ export default function SessionView() {
               {t.label}
             </button>
           ))}
+          <button
+            onClick={() => setReadingOpen(o => !o)}
+            className={`px-3 py-2.5 text-xs font-bold tracking-widest transition-colors border-b-2 -mb-px ${
+              readingOpen
+                ? 'text-amber-400 border-amber-500 bg-zinc-800/50'
+                : 'text-zinc-600 border-transparent hover:text-zinc-400'
+            }`}
+          >
+            READ
+          </button>
         </div>
 
-        {/* Tool content */}
-        {activeMode !== 'chat' && (
-          <div className="flex-1 overflow-hidden">
-            {activeMode === 'sliders'    && <SliderMode />}
-            {activeMode === 'table'      && <TableMode />}
-            {activeMode === 'pareto'     && <ParetoMode />}
-            {activeMode === 'target'     && <TargetMode />}
-            {activeMode === 'montecarlo' && <MonteCarloMode />}
+        {/* Reading panel — slides in above the tool content */}
+        {readingOpen && currentProblem && (
+          <div className="border-b border-zinc-800 bg-zinc-950 overflow-y-auto shrink-0 max-h-[50vh]">
+            <AerodynamicsBackground problem={currentProblem} />
           </div>
         )}
 
-        {/* Chat content */}
-        {activeMode === 'chat' && (
-          <>
-            <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
-              {chatMessages.map((msg, i) => (
-                <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-sm rounded-lg px-3 py-2 text-xs leading-relaxed whitespace-pre-wrap ${
-                    msg.role === 'user'
-                      ? 'bg-blue-600 text-white rounded-br-sm'
-                      : 'bg-zinc-800 text-zinc-100 rounded-bl-sm'
-                  }`}>
-                    {msg.role === 'assistant' && (
-                      <div className="text-blue-400 text-xs tracking-widest mb-1 font-bold">AIRFOILLEARNER</div>
-                    )}
-                    {msg.content}
-                    {msg.chartData && (
-                      <div onClick={() => setExpandedChart(msg.chartData)} className="cursor-zoom-in">
-                        <InlineCharts data={msg.chartData} designAlpha={currentProblem?.design_alpha} />
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-              {isChatLoading && (
-                <div className="flex justify-start">
-                  <div className="bg-zinc-800 rounded-lg rounded-bl-sm px-3 py-2">
-                    <div className="text-blue-400 text-xs tracking-widest mb-1 font-bold">AIRFOILLEARNER</div>
-                    <div className="flex gap-1">
-                      {[0, 1, 2].map(i => (
-                        <div key={i} className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-bounce"
-                          style={{ animationDelay: `${i * 100}ms` }} />
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-              <div ref={chatEndRef} />
-            </div>
-
-            <div className="border-t border-zinc-800 p-3">
-              <div className="flex gap-2 items-end bg-zinc-800 rounded-lg px-3 py-2">
-                <textarea
-                  value={input}
-                  onChange={e => setInput(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
-                  }}
-                  placeholder="Ask AirfoilLearner or request a simulation..."
-                  className="flex-1 bg-transparent text-zinc-100 text-xs resize-none outline-none placeholder-zinc-600 leading-relaxed"
-                  rows={2}
-                />
-                <button
-                  onClick={handleSend}
-                  disabled={isChatLoading || !input.trim()}
-                  className="text-xs text-blue-400 font-bold tracking-widest disabled:text-zinc-700 hover:text-blue-300 transition-colors shrink-0 pb-0.5"
-                >
-                  SEND →
-                </button>
-              </div>
-            </div>
-          </>
-        )}
+        {/* Tool content */}
+        <div className="flex-1 overflow-hidden">
+          {activeMode === 'sliders'    && <SliderMode />}
+          {activeMode === 'table'      && <TableMode />}
+          {activeMode === 'pareto'     && <ParetoMode />}
+          {activeMode === 'target'     && <TargetMode />}
+          {activeMode === 'montecarlo' && <MonteCarloMode />}
+        </div>
       </div>
     </div>
 

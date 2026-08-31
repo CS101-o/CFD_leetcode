@@ -1,5 +1,19 @@
 import { create } from 'zustand'
 
+// Persist the session id so return visits are attributable in the design log
+function getSessionId() {
+  try {
+    let sid = localStorage.getItem('al_session_id')
+    if (!sid) {
+      sid = crypto.randomUUID()
+      localStorage.setItem('al_session_id', sid)
+    }
+    return sid
+  } catch {
+    return crypto.randomUUID()
+  }
+}
+
 const useStore = create((set) => ({
   results: null,
   polarData: null,
@@ -8,7 +22,7 @@ const useStore = create((set) => ({
 
   // Session identity
   participantId: '',
-  sessionId: crypto.randomUUID(),
+  sessionId: getSessionId(),
 
   // FlowSense state
   currentProblem: null,
@@ -24,6 +38,11 @@ const useStore = create((set) => ({
   },
 
   solvedProblems: new Set(),
+
+  // AI tutor chat (Module01 design loop)
+  aiMessages: [],   // [{type:'assessment'|'user'|'tutor', text, compliance, airfoil, ts}]
+  aiChatOpen: false,
+  aiAssessing: false,
 
   setResults: (results) => set({ results }),
   setPolarData: (polarData) => set({ polarData }),
@@ -48,7 +67,10 @@ const useStore = create((set) => ({
     results: null,
     polarData: null,
     allResults: [],
-    activeMode: 'chat',
+    activeMode: 'sliders',
+    aiMessages: [],
+    aiChatOpen: false,
+    aiAssessing: false,
     sessionStats: { experimentsRun: 0, casesTotal: 0, iterationCount: 0 },
   }),
   setView: (view) => set({ view }),
@@ -66,8 +88,19 @@ const useStore = create((set) => ({
     results: null,
     allResults: [],
     activeMode: 'viz',
+    aiMessages: [],
+    aiChatOpen: false,
+    aiAssessing: false,
     sessionStats: { experimentsRun: 0, casesTotal: 0, iterationCount: 0 },
   }),
+
+  addAiMessage: (msg) => set((state) => ({
+    aiMessages: [...state.aiMessages, { ...msg, ts: Date.now() }],
+    aiChatOpen: true,
+    aiAssessing: false,
+  })),
+  setAiChatOpen: (open) => set({ aiChatOpen: open }),
+  setAiAssessing: (v) => set({ aiAssessing: v }),
 }))
 
 export default useStore

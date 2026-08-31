@@ -1,14 +1,49 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
 from typing import Optional
 import json
 import os
+import time
+from collections import defaultdict, deque
 
 from app.services.session_logger import log_event, get_all_sessions, get_session
 
 router = APIRouter()
 
 _OBSERVE_KEY = os.environ.get("OBSERVE_KEY", "observe2026")
+
+# ------------------------------------------------------------------
+# Rate limiting for the LLM endpoint (Gemini spend protection).
+# In-memory sliding windows — resets on redeploy, which is fine: this is a
+# bot/abuse guard, not accounting.
+# ------------------------------------------------------------------
+_RATE_PER_MIN_IP = int(os.environ.get("CHAT_RATE_PER_MIN_IP", "8"))
+_RATE_PER_DAY_GLOBAL = int(os.environ.get("CHAT_RATE_PER_DAY_GLOBAL", "1000"))
+_ip_hits = defaultdict(deque)
+_global_hits = deque()
+
+
+def _client_ip(request: Request) -> str:
+    fwd = request.headers.get("x-forwarded-for")
+    if fwd:
+        return fwd.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
+def _check_rate(request: Request) -> None:
+    now = time.time()
+    ip = _client_ip(request)
+    hits = _ip_hits[ip]
+    while hits and now - hits[0] > 60:
+        hits.popleft()
+    if len(hits) >= _RATE_PER_MIN_IP:
+        raise HTTPException(status_code=429, detail="Too many messages — wait a minute and try again.")
+    while _global_hits and now - _global_hits[0] > 86400:
+        _global_hits.popleft()
+    if len(_global_hits) >= _RATE_PER_DAY_GLOBAL:
+        raise HTTPException(status_code=429, detail="The assistant is at capacity for today — simulations still work.")
+    hits.append(now)
+    _global_hits.append(now)
 
 
 def load_problems():
@@ -73,16 +108,19 @@ def get_problem(problem_id: str):
 # ------------------------------------------------------------------
 
 @router.post("/session/start")
-def start_session(req: StartSessionRequest):
+def start_session(req: StartSessionRequest, request: Request):
     problems = load_problems()
     problem = next((p for p in problems if p["id"] == req.problem_id), None)
     if not problem:
         raise HTTPException(status_code=404, detail="Problem not found")
+    fwd = request.headers.get("x-forwarded-for")
+    ip = fwd.split(",")[0].strip() if fwd else (request.client.host if request.client else "unknown")
     log_event(req.session_id, "session_start", {
         "participant_id": req.participant_id,
         "problem_id": req.problem_id,
         "problem_title": problem["title"],
         "difficulty": problem["difficulty"],
+        "ip": ip,
     })
     return {"status": "ok"}
 
@@ -92,7 +130,8 @@ def start_session(req: StartSessionRequest):
 # ------------------------------------------------------------------
 
 @router.post("/message")
-async def flowsense_message(request: FlowSenseMessageRequest):
+async def flowsense_message(request: FlowSenseMessageRequest, http_request: Request):
+    _check_rate(http_request)
     from app.services.llm_service import LLMService
 
     problems = load_problems()

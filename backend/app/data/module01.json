@@ -1,0 +1,105 @@
+{
+  "id": "module01-uav-wing",
+  "title": "UAV Wing Section — Design Freeze in Two Weeks",
+  "program": "SPARROW-7 Endurance UAV",
+  "sender": "Elena Vasquez, Chief Engineer",
+  "brief": "FROM: Elena Vasquez, Chief Engineer\nTO: You (Aerodynamics, Wing Section)\nSUBJECT: Wing section change — needed before design freeze\n\nWe have a problem. Marketing has publicly committed to a 90-minute flight time for SPARROW-7, and this morning the battery supplier confirmed the production pack comes in 8% heavier than spec.\n\nAt cruise the aircraft flies at 22 m/s at sea level with a 0.34 m mean chord. Last year's loads report puts the current wing section — a NACA 2412 — at a cruise lift coefficient of 0.805 at the 5° rigging angle. The heavier pack means the wing must now carry 8% more lift at the same cruise speed and the same rigging angle: changing the rigging or the planform is off the table this late.\n\nEndurance is the other jaw of the vice. The energy model says that if the section's profile drag coefficient at cruise goes above 0.0100, we lose the 90-minute commitment. The current section is at 0.00915, so there is margin — but not much.\n\nDesign freeze is in two weeks. I need your recommended wing section, with the numbers and your reasoning, before then. Do not bring me a section that hits the lift number by giving away the endurance target.\n\n— E.V.",
+  "conditions": {
+    "airfoil_baseline": "2412",
+    "design_alpha": 5,
+    "reynolds": 500000,
+    "mach": 0.06,
+    "cruise_speed_ms": 22,
+    "chord_m": 0.34
+  },
+  "requirements_key": {
+    "target_CL": 0.87,
+    "max_CD": 0.0100,
+    "reynolds": 500000,
+    "design_alpha": 5
+  },
+  "requirements_questions": [
+    {
+      "id": "target_cl",
+      "label": "Design lift coefficient target at cruise",
+      "options": ["CL ≥ 0.805", "CL ≥ 0.87", "CL ≥ 1.08"],
+      "correct": 1,
+      "hint": "The memo gives the current cruise CL and says the wing must carry 8% more lift at the same speed and rigging angle. Do the multiplication."
+    },
+    {
+      "id": "max_cd",
+      "label": "Profile drag constraint at cruise",
+      "options": ["CD ≤ 0.00915", "CD ≤ 0.0100", "No drag constraint is stated"],
+      "correct": 1,
+      "hint": "Re-read the paragraph about the energy model — it states the exact ceiling that loses the 90-minute commitment."
+    },
+    {
+      "id": "reynolds",
+      "label": "Operating Reynolds number",
+      "options": ["≈ 5 × 10⁵", "≈ 5 × 10⁶", "≈ 1 × 10⁶"],
+      "correct": 0,
+      "hint": "Re = V·c/ν. The memo gives cruise speed and mean chord; sea-level kinematic viscosity is ≈ 1.5 × 10⁻⁵ m²/s."
+    },
+    {
+      "id": "deliverable",
+      "label": "The deliverable",
+      "options": [
+        "A recommended wing section with numbers and reasoning, before design freeze",
+        "A full 3D CFD model of the aircraft",
+        "A revised battery specification"
+      ],
+      "correct": 0,
+      "hint": "The last paragraph of the memo says exactly what the Chief Engineer expects on her desk."
+    }
+  ],
+  "prediction": {
+    "question": "Before you run anything: the current section is a NACA 2412 at α = 5°, Re = 5×10⁵. Roughly what cruise CL do you expect it to produce?",
+    "options": [0.3, 0.8, 1.4],
+    "mismatch_threshold": 0.3
+  },
+  "checkpoint": {
+    "trigger_after_runs": 3,
+    "title": "Before you go further — the intern needs a sign-off",
+    "setup": "The intern on your team just pinged you. They've been running cases in parallel and think the problem is already solved. Design review is this afternoon and they want your sign-off on this result:",
+    "intern_result": {
+      "airfoil": "4412",
+      "alpha": 5,
+      "reynolds": 5000000,
+      "CL": 1.042,
+      "CD": 0.00663,
+      "L_D": 157.2,
+      "claim": "NACA 4412 clears the lift target with room to spare, and drag is 0.0066 — a third under the budget. We could even add more camber. Ready to sign off?"
+    },
+    "question": "Would you sign off on this result before the design review? Explain your reasoning — what did you check, and what would you tell the intern?",
+    "reveal": "The numbers are real — but the condition isn't. The intern ran the case at Re = 5×10⁶, ten times the SPARROW-7's cruise Reynolds number (they pulled it from a full-scale reference report). At the correct Re = 5×10⁵, the NACA 4412 gives CD ≈ 0.0096 — the 'third under budget' drag margin is fictitious, and the recommendation to add more camber would have busted the endurance target. The section may still be a good choice; the intern's evidence for it wasn't. A reviewer who checks the operating condition before the coefficients catches this in ten seconds.",
+    "min_answer_chars": 60
+  },
+  "review_form": {
+    "min_justification_chars": 80,
+    "min_field_chars": 40,
+    "fields": [
+      {
+        "id": "justification",
+        "label": "Why this section? Walk the Chief Engineer through your reasoning.",
+        "placeholder": "Which candidates did you test, what did the numbers show, and why is this the one you'd carry to design freeze?"
+      },
+      {
+        "id": "tradeoff",
+        "label": "One trade-off you consciously accepted, and why.",
+        "placeholder": "e.g. what you gave up on drag margin (or lift margin, or stall behaviour) to meet both targets."
+      },
+      {
+        "id": "validate_next",
+        "label": "One thing you would still validate with a full CFD solve or wind-tunnel test before production.",
+        "placeholder": "The surrogate covers the cruise point. What's the riskiest thing it doesn't cover?"
+      }
+    ]
+  },
+  "skills": [
+    "Requirements extraction from program language",
+    "Back-of-envelope estimation before simulation",
+    "Reynolds-regime reasoning",
+    "Lift/drag trade-off analysis",
+    "Results validation and review judgment"
+  ]
+}

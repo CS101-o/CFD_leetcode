@@ -2,7 +2,13 @@ import json
 import os
 from datetime import datetime, timezone
 
-_LOG_DIR = os.path.join(os.path.dirname(__file__), "../../../logs")
+# When DATA_DIR is set (e.g. a Railway volume mounted at /data), all logs go
+# there so they survive redeploys. Default keeps the local repo layout.
+_DATA_DIR = os.environ.get("DATA_DIR")
+_LOG_DIR = (
+    os.path.join(_DATA_DIR, "logs") if _DATA_DIR
+    else os.path.join(os.path.dirname(__file__), "../../../logs")
+)
 
 
 def log_event(session_id: str, event: str, data: dict) -> None:
@@ -16,6 +22,11 @@ def log_event(session_id: str, event: str, data: dict) -> None:
     path = os.path.join(_LOG_DIR, f"{session_id}.jsonl")
     with open(path, "a") as f:
         f.write(json.dumps(entry) + "\n")
+    # Mirror session_start events to a shared index for easy cross-user review
+    if event == "session_start":
+        index_path = os.path.join(_LOG_DIR, "starts.jsonl")
+        with open(index_path, "a") as f:
+            f.write(json.dumps(entry) + "\n")
 
 
 def get_all_sessions() -> list:

@@ -3,12 +3,16 @@ import axios from 'axios'
 import useStore from './store/useStore'
 import ProblemLibrary from './components/ProblemLibrary'
 import SessionView from './components/SessionView'
+import Module01 from './components/module/Module01'
+import HeroLanding from './components/HeroLanding'
 
 const API_URL = import.meta.env.VITE_API_URL || '/api/v1'
 
 export default function App() {
-  const { view, setProblems, participantId, setParticipantId } = useStore()
-  const [draft, setDraft] = useState('')
+  const { view, setProblems, participantId, setParticipantId, resetSession } = useStore()
+  const [briefAccepted, setBriefAccepted] = useState(true)
+  // Research mode is the default starting page; Module01 is reached via the library card
+  const [appMode, setAppMode] = useState('study')
 
   useEffect(() => {
     axios.get(`${API_URL}/flowsense/problems`)
@@ -16,41 +20,35 @@ export default function App() {
       .catch(err => console.error('Failed to load problems:', err))
   }, [])
 
-  if (!participantId) {
+  if (!briefAccepted) {
+    return <HeroLanding onEnter={() => { setBriefAccepted(true); setAppMode('module') }} />
+  }
+
+  if (appMode === 'module') {
     return (
-      <div className="flex h-screen items-center justify-center bg-zinc-950">
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-8 w-80 flex flex-col gap-4">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="w-5 h-5 bg-blue-500 rotate-45 rounded-sm" />
-            <span className="text-xs font-bold tracking-widest text-zinc-100">AIRFOILLEARNER</span>
-          </div>
-          <p className="text-xs text-zinc-400 leading-relaxed">
-            Enter your participant ID to begin the session. This is used only to label your activity log.
-          </p>
-          <input
-            autoFocus
-            type="text"
-            value={draft}
-            onChange={e => setDraft(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter' && draft.trim()) setParticipantId(draft.trim()) }}
-            placeholder="e.g. P01"
-            className="bg-zinc-800 border border-zinc-700 text-zinc-100 text-sm rounded-lg px-3 py-2 outline-none focus:border-blue-500 placeholder-zinc-600"
-          />
-          <button
-            disabled={!draft.trim()}
-            onClick={() => setParticipantId(draft.trim())}
-            className="bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-800 disabled:text-zinc-600 text-white text-xs font-bold tracking-widest py-2 rounded-lg transition-colors"
-          >
-            START SESSION →
-          </button>
-        </div>
-      </div>
+      <Module01
+        onExit={() => {
+          resetSession()
+          setAppMode('study')
+        }}
+      />
     )
   }
 
   return (
     <div className="flex flex-col h-screen bg-zinc-950 text-zinc-100 overflow-hidden">
-      {view === 'library' ? <ProblemLibrary /> : <SessionView />}
+      <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-800 bg-zinc-950 shrink-0">
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-4 bg-blue-500 rotate-45 rounded-sm" />
+          <span className="text-[11px] font-bold tracking-widest">AIRFOILLEARNER</span>
+          <span className="text-zinc-700 text-[11px]">·</span>
+          <span className="text-[11px] text-zinc-500 tracking-widest hidden sm:inline">RESEARCH MODE</span>
+        </div>
+      </div>
+      {view === 'library'
+        ? <ProblemLibrary onGoToModule={() => setAppMode('module')} />
+        : <SessionView />
+      }
     </div>
   )
 }
