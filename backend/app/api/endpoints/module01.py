@@ -99,7 +99,7 @@ def get_module():
 # ------------------------------------------------------------------
 
 _ALLOWED_EVENTS = {
-    "module_start", "stage_enter", "brief_read",
+    "module_start", "stage_enter", "brief_read", "brief_skipped",
     "estimate_mismatch_shown", "artifact_viewed", "forage_link_clicked",
 }
 
