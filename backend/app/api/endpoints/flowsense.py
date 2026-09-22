@@ -74,7 +74,18 @@ def _build_success_check(problem: dict) -> str:
     if "target_LD" in criteria:
         lines.append(f"- Is the latest L/D >= {criteria['target_LD']}?")
     if "cruise_CL_min" in criteria:
-        lines.append(f"- Is the latest CL >= {criteria['cruise_CL_min']} at α = {alpha}°?")
+        if problem.get("alpha_free"):
+            lines.append(f"- Is the latest CL >= {criteria['cruise_CL_min']}? (any angle of attack counts — that's the variable being tested)")
+        else:
+            lines.append(f"- Is the latest CL >= {criteria['cruise_CL_min']} at α = {alpha}°?")
+    if "cd_spike_ratio" in criteria:
+        baseline_alpha = problem.get("cd_baseline_alpha", 4)
+        lines.append(
+            f"- Compare the latest run's CD to this same airfoil's attached-flow CD near α = {baseline_alpha}° "
+            f"(read it off the polar sweep data, or an earlier low-alpha run in this conversation, for the SAME airfoil code). "
+            f"Is the latest CD at least {criteria['cd_spike_ratio']}x that baseline value? "
+            f"Use each airfoil's own baseline, not a fixed number — thinner or more cambered sections separate at different absolute drag levels."
+        )
     if "stall_angle_improvement" in criteria:
         lines.append(
             f"- Has the stall angle improved by at least {criteria['stall_angle_improvement']}° "
@@ -152,6 +163,7 @@ async def flowsense_message(request: FlowSenseMessageRequest, http_request: Requ
     starting = problem['starting_airfoil'].replace('naca', '')
     questions = problem.get('interview_questions', [])
     questions_block = "\n".join(f"{i+1}. {q}" for i, q in enumerate(questions))
+    concept_tags = problem.get('concept_tags') or problem.get('tags', [])
     action_system = f"""You are AirfoilLearner, a research interviewer studying how engineers use aerodynamic surrogate models.
 
 PROBLEM: {problem['title']}
@@ -197,7 +209,7 @@ NEXT QUESTION — Look at the conversation history and identify which interview 
 SUCCESS CHECK — Check each criterion numerically:
 {_build_success_check(problem)}
 If ALL criteria are met: write "✓ BOTTLENECK SOLVED — [airfoil] achieves L/D=[X] and CL=[Y] at α={problem.get('design_alpha', 4)}°."
-If any fail: write "✗ Not solved — [which criterion], gap of [amount]."
+If any fail: point at the concept, do not explain it. One line: "✗ [criterion] short by [amount] — look up {' / '.join(concept_tags) or 'the concept this problem tags'}." Never write a mini-lecture on why it failed — that's what the concept tag and further-reading link are for.
 
 Plain text only. No JSON, no code fences."""
 
@@ -261,3 +273,53 @@ def observe_session(session_id: str, key: str = Query("")):
     if key != _OBSERVE_KEY:
         raise HTTPException(status_code=403, detail="Invalid key")
     return {"events": get_session(session_id)}
+
+
+_SIM_EVENTS = {"simulation_run", "polar_sweep", "table_compare"}
+_SIGNUPS_PATH = os.path.join(os.environ.get("DATA_DIR") or os.path.join(os.path.dirname(__file__), "../../data"), "signups.jsonl")
+
+
+@router.get("/observe/funnel")
+def observe_funnel(key: str = Query("")):
+    """Aggregate funnel counts, computed from the same event logs the raw
+    /observe/sessions endpoint exposes — so this never needs a separate
+    analytics system, just a summary pass over what's already logged."""
+    if key != _OBSERVE_KEY:
+        raise HTTPException(status_code=403, detail="Invalid key")
+
+    sessions = [s for s in get_all_sessions() if s["session_id"] != "starts"]
+    n = len(sessions)
+
+    def has(events, pred):
+        return any(pred(e) for e in events)
+
+    def sim_count(events):
+        return sum(1 for e in events if e.get("event") in _SIM_EVENTS)
+
+    ran_1 = sum(1 for s in sessions if sim_count(s["events"]) >= 1)
+    ran_2 = sum(1 for s in sessions if sim_count(s["events"]) >= 2)
+    module_starts = sum(1 for s in sessions if has(s["events"], lambda e: e.get("event") == "module_start"))
+    design_loop = sum(1 for s in sessions if has(
+        s["events"], lambda e: e.get("event") == "stage_enter" and e.get("stage") == "design"
+    ))
+    completions = sum(1 for s in sessions if has(s["events"], lambda e: e.get("event") == "review_submitted"))
+    email_prompts_shown = sum(1 for s in sessions if has(s["events"], lambda e: e.get("event") == "email_prompt_shown"))
+
+    emails = 0
+    if os.path.isfile(_SIGNUPS_PATH):
+        with open(_SIGNUPS_PATH) as f:
+            emails = sum(1 for line in f if line.strip())
+
+    def pct(count):
+        return round(100 * count / n, 1) if n else 0.0
+
+    return {
+        "unique_visitors": n,
+        "ran_1_sim": {"count": ran_1, "pct": pct(ran_1)},
+        "ran_2_sim": {"count": ran_2, "pct": pct(ran_2)},
+        "module_starts": {"count": module_starts, "pct": pct(module_starts)},
+        "design_loop_reaches": {"count": design_loop, "pct": pct(design_loop)},
+        "completions": {"count": completions, "pct": pct(completions)},
+        "email_prompts_shown": email_prompts_shown,
+        "emails_captured": emails,
+    }

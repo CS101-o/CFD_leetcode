@@ -4,14 +4,12 @@ import useStore from './store/useStore'
 import ProblemLibrary from './components/ProblemLibrary'
 import SessionView from './components/SessionView'
 import Module01 from './components/module/Module01'
-import HeroLanding from './components/HeroLanding'
 
 const API_URL = import.meta.env.VITE_API_URL || '/api/v1'
 
 export default function App() {
   const { view, setProblems, participantId, setParticipantId, resetSession } = useStore()
-  const [briefAccepted, setBriefAccepted] = useState(true)
-  // Research mode is the default starting page; Module01 is reached via the library card
+  // The sandbox (research mode) is the default starting page; Module01 is reached via the library card
   const [appMode, setAppMode] = useState('study')
 
   useEffect(() => {
@@ -19,10 +17,6 @@ export default function App() {
       .then(res => setProblems(res.data.problems))
       .catch(err => console.error('Failed to load problems:', err))
   }, [])
-
-  if (!briefAccepted) {
-    return <HeroLanding onEnter={() => { setBriefAccepted(true); setAppMode('module') }} />
-  }
 
   if (appMode === 'module') {
     return (
@@ -42,7 +36,7 @@ export default function App() {
           <div className="w-4 h-4 bg-blue-500 rotate-45 rounded-sm" />
           <span className="text-[11px] font-bold tracking-widest">AIRFOILLEARNER</span>
           <span className="text-zinc-700 text-[11px]">·</span>
-          <span className="text-[11px] text-zinc-500 tracking-widest hidden sm:inline">RESEARCH MODE</span>
+          <span className="text-[11px] text-zinc-500 tracking-widest hidden sm:inline">SANDBOX</span>
         </div>
       </div>
       {view === 'library'

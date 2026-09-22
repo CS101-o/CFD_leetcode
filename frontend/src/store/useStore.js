@@ -81,6 +81,9 @@ const useStore = create((set) => ({
       iterationCount: state.sessionStats.iterationCount + 1,
     },
   })),
+  // Direct overwrite (not additive like incrementStats) — used to restore a
+  // persisted run count after a reload, when nothing was actually re-run.
+  setSessionStats: (stats) => set({ sessionStats: stats }),
   resetSession: () => set({
     currentProblem: null,
     view: 'library',

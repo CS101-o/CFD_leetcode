@@ -268,6 +268,49 @@ const GUIDE_ITEMS = [
   },
 ]
 
+function EmailPrompt({ onDismiss }) {
+  const [email, setEmail] = useState('')
+  const [state, setState] = useState('') // '' | 'saving' | 'done' | error text
+
+  function submit() {
+    setState('saving')
+    axios.post(`${API_URL}/module01/waitlist`, { email: email.trim(), source: 'sandbox_2nd_sim' })
+      .then(() => setState('done'))
+      .catch(err => setState(err.response?.data?.detail || 'Could not save — check the address.'))
+  }
+
+  if (state === 'done') {
+    return (
+      <div className="px-4 py-2 text-[11px] bg-emerald-950/30 border-b border-emerald-600/20 text-emerald-300 shrink-0 flex items-center justify-between">
+        <span>Saved — you'll hear about new problems.</span>
+        <button onClick={onDismiss} className="text-emerald-500 hover:text-emerald-300 text-sm leading-none">×</button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="px-4 py-2 bg-zinc-950 border-b border-zinc-800 shrink-0 flex items-center gap-2">
+      <span className="text-[11px] text-zinc-400 shrink-0">Want new problems when they're added? Leave an email.</span>
+      <input
+        type="email"
+        value={email}
+        onChange={e => setEmail(e.target.value)}
+        placeholder="you@example.com"
+        className="flex-1 min-w-0 bg-zinc-800 border border-zinc-700 text-zinc-100 text-[11px] rounded px-2 py-1 outline-none focus:border-blue-500 placeholder-zinc-600"
+      />
+      <button
+        onClick={submit}
+        disabled={!email.trim() || state === 'saving'}
+        className="shrink-0 bg-zinc-100 hover:bg-white disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900 text-[10px] font-bold tracking-widest px-3 py-1 rounded transition-colors"
+      >
+        SAVE
+      </button>
+      <button onClick={onDismiss} className="shrink-0 text-zinc-600 hover:text-zinc-300 text-sm leading-none">×</button>
+      {state && state !== 'saving' && <div className="text-red-400 text-[10px] shrink-0">{state}</div>}
+    </div>
+  )
+}
+
 function GuidanceModal({ onClose }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
@@ -348,6 +391,21 @@ export default function SessionView() {
     try { return !localStorage.getItem('al_guidance_seen') } catch { return true }
   })
   const chatEndRef = useRef(null)
+
+  // Email capture — earn it first: prompt once, after the 2nd simulation, never on arrival.
+  const [emailPromptOpen, setEmailPromptOpen] = useState(false)
+  function dismissEmailPrompt() {
+    setEmailPromptOpen(false)
+    try { localStorage.setItem('al_email_prompted', '1') } catch {}
+  }
+  useEffect(() => {
+    if (sessionStats.experimentsRun !== 2) return
+    try { if (localStorage.getItem('al_email_prompted')) return } catch {}
+    setEmailPromptOpen(true)
+    axios.post(`${API_URL}/module01/event`, {
+      session_id: sessionId, event: 'email_prompt_shown', data: { source: 'sandbox_2nd_sim' },
+    }).catch(() => {})
+  }, [sessionStats.experimentsRun])
 
   function closeGuidance() {
     try { localStorage.setItem('al_guidance_seen', '1') } catch {}
@@ -664,6 +722,8 @@ export default function SessionView() {
         <div className="md:hidden h-48 shrink-0 border-b border-zinc-800">
           <LeftPanel />
         </div>
+
+        {emailPromptOpen && <EmailPrompt onDismiss={dismissEmailPrompt} />}
 
         {/* Tab nav */}
         <div className="border-b border-zinc-800 flex shrink-0">

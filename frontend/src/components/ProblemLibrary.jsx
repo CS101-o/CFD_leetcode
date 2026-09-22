@@ -58,7 +58,6 @@ export default function ProblemLibrary({ onGoToModule }) {
   const [hovered, setHovered]     = useState(null)
   const [coords, setCoords]       = useState(null)
   const [loadingCoords, setLoadingCoords] = useState(false)
-  const [briefAccepted, setBriefAccepted] = useState(false)
 
   useEffect(() => {
     if (problems.length === 0) {
@@ -103,7 +102,7 @@ export default function ProblemLibrary({ onGoToModule }) {
   return (
     <div className="flex h-full overflow-hidden">
 
-      {/* ── Left: CFD panel — hidden on mobile ── */}
+      {/* ── Left: 3D preview panel — hidden on mobile ── */}
       <div className="hidden md:flex w-1/2 bg-zinc-950 flex-col border-r border-zinc-800 relative">
 
         {/* 3D canvas */}
@@ -145,7 +144,20 @@ export default function ProblemLibrary({ onGoToModule }) {
               {'stall_angle_improvement' in criteria && (
                 <MetricRow label="Stall" current="abrupt" target={`+${criteria.stall_angle_improvement}° softer`} passing={false} />
               )}
+              {'cd_spike_ratio' in criteria && (
+                <MetricRow label="CD" current="attached" target={`≥ ${criteria.cd_spike_ratio}× baseline`} passing={false} />
+              )}
             </div>
+            {hovered.assumes_you_know && (
+              <div className="text-[11px] text-zinc-500 mt-3 pt-3 border-t border-zinc-800">
+                <span className="text-zinc-600">Assumes you know:</span> {hovered.assumes_you_know}
+              </div>
+            )}
+            {hovered.further_reading && (
+              <a href={hovered.further_reading} target="_blank" rel="noreferrer" className="block text-[11px] text-blue-500 hover:text-blue-400 mt-2 underline underline-offset-2">
+                Further reading →
+              </a>
+            )}
           </div>
         )}
       </div>
@@ -158,84 +170,29 @@ export default function ProblemLibrary({ onGoToModule }) {
           <div className="w-4 h-4 bg-blue-500 rotate-45 rounded-sm" />
           <span className="text-[11px] font-bold tracking-widest text-zinc-100">AIRFOILLEARNER</span>
           <span className="text-zinc-700 text-[11px]">·</span>
-          <span className="text-[11px] text-zinc-500 tracking-widest">
-            {briefAccepted ? 'MISSION SELECT' : 'INCOMING BRIEF'}
-          </span>
+          <span className="text-[11px] text-zinc-500 tracking-widest">SANDBOX</span>
         </header>
 
-        {!briefAccepted ? (
-          /* ── STATE 1: Project brief only ── */
-          <div className="flex-1 overflow-y-auto flex flex-col">
-            {/* Classification strip */}
-            <div className="flex justify-between px-6 py-1.5 bg-orange-950/20 border-b border-orange-500/15 shrink-0">
-              <span className="text-[9px] font-mono tracking-[0.16em] text-orange-500">ENGINEERING USE ONLY</span>
-              <span className="text-[9px] font-mono tracking-[0.12em] text-orange-900">REF: AE-2026-0047</span>
-            </div>
-
-            {/* From / To / Date */}
-            <div className="px-6 py-4 flex flex-col gap-1.5 border-b border-zinc-800/50 shrink-0">
-              {[
-                ['FROM', 'Flight Test Directorate · Sparrow-7 Program', 'text-zinc-500'],
-                ['TO',   'Wing Design Engineer', 'text-zinc-200'],
-                ['DATE', '2026-08-31 · 14:03 UTC', 'text-zinc-600'],
-              ].map(([label, val, col]) => (
-                <div key={label} className="flex gap-3 items-baseline">
-                  <span className="font-mono text-[9px] tracking-[0.12em] text-zinc-700 w-9">{label}</span>
-                  <span className={`font-mono text-[10px] ${col}`}>{val}</span>
-                </div>
-              ))}
-            </div>
-
-            {/* Headline + body */}
-            <div className="px-6 py-6 flex-1">
-              <div className="flex items-center gap-2 mb-4">
-                <span className="font-mono text-[9px] font-bold tracking-[0.16em] text-orange-500 border border-orange-500/35 bg-orange-500/8 px-2 py-0.5 rounded-[2px]">HIGH PRIORITY</span>
-                <span className="font-mono text-[9px] tracking-[0.10em] text-zinc-700">WING SECTION REPLACEMENT</span>
-              </div>
-
-              <h2 className="font-mono text-xl font-bold text-zinc-100 leading-snug mb-5">
-                Current wing is failing the<br />endurance target by 23%.
-              </h2>
-
-              <p className="text-[13px] text-zinc-400 leading-relaxed mb-6">
-                NACA 2412 baseline delivers CL&nbsp;=&nbsp;0.63 at cruise — 23% short of the
-                CL&nbsp;≥&nbsp;0.80 requirement at Re&nbsp;500,000. The Sparrow-7 program cannot
-                meet its endurance target at current wing loading. We need a replacement
-                section that closes the lift gap without exceeding the drag budget.
-              </p>
-
-              <p className="text-[13px] text-zinc-500 leading-relaxed mb-8">
-                Your role is to identify a candidate airfoil and justify the choice
-                through simulation. Use the tools on the left to explore the design
-                space — the AI tutor will guide you through the tradeoffs.
-              </p>
-
-              {/* Metrics */}
-              <div className="flex border border-zinc-800 rounded-lg overflow-hidden mb-8">
-                {[
-                  { label: 'CL REQUIRED', val: '≥ 0.80', hot: true },
-                  { label: 'CD BUDGET',   val: '≤ 0.015', hot: false },
-                  { label: 'REYNOLDS No.', val: '500,000', hot: false },
-                ].map((m, i) => (
-                  <div key={m.label} className={`flex-1 px-4 py-3 ${i < 2 ? 'border-r border-zinc-800' : ''}`}>
-                    <div className="font-mono text-[8px] tracking-[0.14em] text-zinc-700 mb-1.5">{m.label}</div>
-                    <div className={`font-mono text-base font-bold tabular-nums ${m.hot ? 'text-orange-500' : 'text-blue-400'}`}>{m.val}</div>
-                  </div>
-                ))}
-              </div>
-
-              <button
-                onClick={() => setBriefAccepted(true)}
-                className="w-full bg-blue-600 hover:bg-blue-500 text-white font-mono text-[11px] font-bold tracking-[0.15em] py-3.5 rounded-lg transition-colors"
-              >
-                ACCEPT BRIEF — SELECT A MISSION →
-              </button>
-            </div>
+        {/* ── Mission list, sandbox-forward: no gate, no click-through ── */}
+        <div className="flex-1 overflow-y-auto px-5 py-5">
+          <div className="mb-5">
+            <h1 className="text-base font-bold text-zinc-100 leading-snug mb-1.5">
+              Practise aerodynamic design, not just read about it.
+            </h1>
+            <p className="text-[12px] text-zinc-500 leading-relaxed">
+              Run experiments on airfoil geometries and get results in seconds instead of solver-hours,
+              so you can iterate, fail fast, and build design intuition. Pick any problem below to start free-form,
+              or use Module 01 for a structured track.
+            </p>
+            <p className="text-[11px] text-zinc-600 mt-2">
+              Airfoil problems for now. Fundamentals live in textbooks —{' '}
+              <a href="https://github.com/barbagroup/CFDPython" target="_blank" rel="noreferrer" className="text-blue-500 hover:text-blue-400 underline underline-offset-2">
+                we'll point you at the good ones
+              </a>.
+            </p>
           </div>
-        ) : (
-          /* ── STATE 2: Mission list ── */
-          <div className="flex-1 overflow-y-auto px-5 py-5">
-            <p className="text-[10px] text-zinc-600 tracking-widest mb-4">SELECT A MISSION TO BEGIN</p>
+
+          <p className="text-[10px] text-zinc-600 tracking-widest mb-4">SELECT A PROBLEM TO BEGIN</p>
 
             <div className="flex flex-col gap-2.5">
               {/* Module 01 */}
@@ -298,9 +255,23 @@ export default function ProblemLibrary({ onGoToModule }) {
                   }`}>
                     {problem.title}
                   </div>
-                  <div className="text-[12px] text-zinc-500 leading-relaxed mb-3 pl-2 line-clamp-2">
+                  <div className="text-[12px] text-zinc-500 leading-relaxed mb-2 pl-2 line-clamp-2">
                     {problem.bottleneck.split('\n')[0]}
                   </div>
+                  {(problem.concept_tags?.length > 0) && (
+                    <div className="flex gap-1.5 flex-wrap mb-2 pl-2">
+                      {problem.concept_tags.map(t => (
+                        <span key={t} className="text-[9px] font-mono text-zinc-500 border border-zinc-700 rounded px-1.5 py-0.5">
+                          {t}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {problem.assumes_you_know && (
+                    <div className="text-[10px] text-zinc-600 italic mb-2 pl-2">
+                      Assumes you know: {problem.assumes_you_know}
+                    </div>
+                  )}
                   <div className="flex items-center justify-between pt-2 border-t border-zinc-800 pl-2">
                     <div className="flex gap-3 text-[11px] text-zinc-600 font-mono">
                       <span>{problem.starting_airfoil.toUpperCase()}</span>
@@ -316,8 +287,7 @@ export default function ProblemLibrary({ onGoToModule }) {
                 </button>
               ))}
             </div>
-          </div>
-        )}
+        </div>
       </div>
     </div>
   )

@@ -149,7 +149,7 @@ function BackgroundReading() {
 export default function Module01({ onExit }) {
   const {
     sessionId, participantId, setParticipantId,
-    setCurrentProblem, sessionStats, results, allResults,
+    setCurrentProblem, sessionStats, setSessionStats, results, allResults,
     addAiMessage, setAiAssessing,
   } = useStore()
 
@@ -196,6 +196,13 @@ export default function Module01({ onExit }) {
     logEvent('stage_enter', { stage: next })
   }
 
+  // Progress checkpointing — leaving mid-module (a reload, a closed tab) isn't
+  // all-or-nothing. This covers client-side loss only; a backend restart can
+  // still wipe server-held state (see summary).
+  const PROGRESS_KEY = 'al_m01_progress'
+  const restored = useRef(false)
+  const savedProgressRef = useRef(null)
+
   useEffect(() => {
     axios.get(`${API}/module01`).then(res => setMod(res.data)).catch(() => {})
     if (!participantId) setParticipantId('anon')
@@ -203,11 +210,41 @@ export default function Module01({ onExit }) {
     try {
       returning = localStorage.getItem('al_m01_started') === '1'
       localStorage.setItem('al_m01_started', '1')
+
+      const saved = JSON.parse(localStorage.getItem(PROGRESS_KEY) || 'null')
+      if (saved) {
+        restored.current = true
+        savedProgressRef.current = saved
+        if (saved.stage) setStageRaw(saved.stage)
+        if (saved.reqAnswers) setReqAnswers(saved.reqAnswers)
+        if (saved.reqResults) setReqResults(saved.reqResults)
+        if (saved.reqPassed) setReqPassed(saved.reqPassed)
+        if (saved.estimate != null) setEstimate(saved.estimate)
+        if (saved.checkpointDone) setCheckpointDone(saved.checkpointDone)
+        if (saved.finalAirfoil) setFinalAirfoil(saved.finalAirfoil)
+        if (saved.review) setReview(saved.review)
+        if (saved.artifact) setArtifact(saved.artifact)
+      }
     } catch { /* private mode */ }
-    logEvent('module_start', { returning })
+    logEvent('module_start', { returning, resumed_progress: restored.current })
     // Log session start with IP capture on the backend
     axios.post(`${API}/module01/start`, { session_id: sessionId }).catch(() => {})
   }, [])
+
+  // Persist on every change that matters for resuming — cheap, so just save the lot.
+  // experimentsRun is included: it drives the checkpoint trigger below, and
+  // without it a resumed mid-design-loop session would need 3 brand-new runs
+  // before the checkpoint (which gates the review stage) fires again.
+  useEffect(() => {
+    if (!mod) return
+    try {
+      localStorage.setItem(PROGRESS_KEY, JSON.stringify({
+        stage, reqAnswers, reqResults, reqPassed, estimate,
+        checkpointDone, finalAirfoil, review, artifact,
+        experimentsRun: sessionStats.experimentsRun,
+      }))
+    } catch { /* private mode */ }
+  }, [mod, stage, reqAnswers, reqResults, reqPassed, estimate, checkpointDone, finalAirfoil, review, artifact, sessionStats.experimentsRun])
 
   // Give the reused design-loop modes (sliders/table/pareto/3D view) the
   // module's operating conditions via the problem object they already read.
@@ -226,6 +263,22 @@ export default function Module01({ onExit }) {
       mission_briefing: mod.brief,
       bottleneck: mod.brief,
     })
+  }, [mod])
+
+  // setCurrentProblem (above) resets sessionStats to zero as a side effect of
+  // starting a "new" problem — restore the run count it just wiped, so a
+  // resumed session that was already past the checkpoint threshold re-triggers
+  // the checkpoint immediately instead of requiring fresh runs to get there again.
+  useEffect(() => {
+    if (!mod) return
+    const saved = savedProgressRef.current
+    if (saved?.experimentsRun > 0) {
+      setSessionStats({
+        experimentsRun: saved.experimentsRun,
+        casesTotal: saved.experimentsRun,
+        iterationCount: saved.experimentsRun,
+      })
+    }
   }, [mod])
 
   // Capture the first run's CL to place beside the estimate
