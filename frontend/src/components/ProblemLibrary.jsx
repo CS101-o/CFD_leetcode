@@ -61,7 +61,7 @@ function WaitlistBox() {
     setState('saving')
     axios.post(`${API_URL}/module01/waitlist`, { email: email.trim(), source: 'main_page' })
       .then(() => setState('done'))
-      .catch(err => setState(err.response?.data?.detail || 'Could not join — check the address.'))
+      .catch(err => setState(err.response?.data?.detail || 'Could not join. Check the address.'))
   }
 
   return (
@@ -106,23 +106,24 @@ function FeedbackBox() {
     setState('saving')
     axios.post(`${API_URL}/module01/feedback`, { message: message.trim(), email: email.trim(), source: 'main_page' })
       .then(() => setState('done'))
-      .catch(err => setState(err.response?.data?.detail || 'Could not send — try again.'))
+      .catch(err => setState(err.response?.data?.detail || 'Could not send. Try again.'))
   }
 
   if (state === 'done') {
     return (
       <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
         <div className="text-xs font-bold text-zinc-200 mb-1">Give feedback</div>
-        <div className="text-emerald-400 text-xs font-bold">Got it — thanks.</div>
+        <div className="text-emerald-400 text-xs font-bold">Got it. Thanks.</div>
       </div>
     )
   }
 
   return (
     <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
-      <div className="text-xs font-bold text-zinc-200 mb-1">Give feedback</div>
+      <div className="text-xs font-bold text-zinc-200 mb-1">Give feedback, or suggest a problem</div>
       <p className="text-[11px] text-zinc-500 leading-relaxed mb-3">
-        Tell us what's missing, broken, or confusing. We read all of it — or email{' '}
+        What's missing, broken, or confusing, or an aerodynamic design problem you wish existed here.
+        We read all of it, or email{' '}
         <a href="mailto:kaan.oktem@airfoillearner.com" className="text-blue-500 hover:text-blue-400 underline underline-offset-2">
           kaan.oktem@airfoillearner.com
         </a>{' '}
@@ -131,7 +132,7 @@ function FeedbackBox() {
       <textarea
         value={message}
         onChange={e => setMessage(e.target.value)}
-        placeholder="What would make this better?"
+        placeholder="e.g. a problem idea, or what would make this better"
         rows={3}
         className="w-full bg-zinc-800 border border-zinc-700 text-zinc-100 text-xs rounded-lg px-3 py-2 outline-none focus:border-blue-500 placeholder-zinc-600 resize-none mb-2"
       />
@@ -158,6 +159,108 @@ function FeedbackBox() {
   )
 }
 
+function BugReportBox() {
+  const [message, setMessage] = useState('')
+  const [email, setEmail] = useState('')
+  const [state, setState] = useState('')
+
+  function submit() {
+    setState('saving')
+    axios.post(`${API_URL}/module01/feedback`, { message: message.trim(), email: email.trim(), source: 'bug_report' })
+      .then(() => setState('done'))
+      .catch(err => setState(err.response?.data?.detail || 'Could not send. Try again.'))
+  }
+
+  if (state === 'done') {
+    return (
+      <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+        <div className="text-xs font-bold text-zinc-200 mb-1">Report a bug</div>
+        <div className="text-emerald-400 text-xs font-bold">Got it. Thanks for flagging it.</div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+      <div className="text-xs font-bold text-zinc-200 mb-1">Report a bug</div>
+      <p className="text-[11px] text-zinc-500 leading-relaxed mb-3">
+        Something broken or behaving wrong? What happened, and what did you expect instead?
+      </p>
+      <textarea
+        value={message}
+        onChange={e => setMessage(e.target.value)}
+        placeholder="e.g. clicked START on rung 3 and the page went blank"
+        rows={3}
+        className="w-full bg-zinc-800 border border-zinc-700 text-zinc-100 text-xs rounded-lg px-3 py-2 outline-none focus:border-blue-500 placeholder-zinc-600 resize-none mb-2"
+      />
+      <div className="flex gap-2">
+        <input
+          type="email"
+          value={email}
+          onChange={e => setEmail(e.target.value)}
+          placeholder="email (optional, if you want a reply)"
+          className="flex-1 min-w-0 bg-zinc-800 border border-zinc-700 text-zinc-100 text-xs rounded-lg px-3 py-2 outline-none focus:border-blue-500 placeholder-zinc-600"
+        />
+        <button
+          onClick={submit}
+          disabled={message.trim().length < 3 || state === 'saving'}
+          className="shrink-0 bg-zinc-100 hover:bg-white disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900 text-xs font-bold tracking-widest px-4 rounded-lg transition-colors"
+        >
+          SEND
+        </button>
+      </div>
+      {state && state !== 'saving' && (
+        <div className="text-red-400 text-[11px] mt-2">{state}</div>
+      )}
+    </div>
+  )
+}
+
+// ── mission popup ───────────────────────────────────────────────────────────────
+
+function MissionModal({ onClose }) {
+  return (
+    <div className="absolute inset-0 z-20 flex items-start justify-start p-6 bg-black/70 backdrop-blur-sm">
+      <div className="bg-zinc-950 border border-blue-500/30 rounded-xl max-w-md w-full max-h-full overflow-y-auto shadow-2xl">
+        <div className="flex items-center justify-between px-5 pt-5 sticky top-0 bg-zinc-950">
+          <div className="text-[10px] font-bold text-blue-400 tracking-widest">OUR MISSION</div>
+          <button
+            onClick={onClose}
+            className="text-zinc-600 hover:text-zinc-300 text-lg leading-none transition-colors"
+          >
+            ×
+          </button>
+        </div>
+        <div className="px-5 pt-3 pb-5 flex flex-col gap-4">
+          <p className="text-[13px] text-zinc-300 leading-relaxed">
+            Our mission is to adapt the LeetCode philosophy to aerodynamic design, challenging your
+            aerodynamic design knowledge so you learn by solving problems. We host simulations so
+            learners can practise real problems and get feedback in seconds. Have an idea for one?
+            Suggest it and we'll build it. Longer term, we want anyone to be able to design and add
+            their own LeetCode-style aerodynamic design problems to the platform, growing a curated
+            community around that same philosophy.
+          </p>
+
+          <div className="border-t border-zinc-800 pt-4">
+            <div className="text-[10px] font-bold text-zinc-500 tracking-widest mb-2">WHAT'S HERE NOW</div>
+            <p className="text-[12px] text-zinc-400 leading-relaxed">
+              Two problem formats. <span className="text-zinc-300 font-semibold">Sandbox problems</span> are
+              short, one concept at a time, solved in minutes, free-form or from the library below.{' '}
+              <span className="text-zinc-300 font-semibold">Guided modules</span> are a longer structured
+              track with requirements, a design loop, and a reviewed final submission. Module 01 is the
+              first sample of that format.
+            </p>
+          </div>
+
+          <WaitlistBox />
+          <FeedbackBox />
+          <BugReportBox />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── main ──────────────────────────────────────────────────────────────────────
 
 export default function ProblemLibrary({ onGoToModule }) {
@@ -165,6 +268,14 @@ export default function ProblemLibrary({ onGoToModule }) {
   const [hovered, setHovered]     = useState(null)
   const [coords, setCoords]       = useState(null)
   const [loadingCoords, setLoadingCoords] = useState(false)
+  const [missionOpen, setMissionOpen] = useState(() => {
+    try { return !localStorage.getItem('al_mission_seen') } catch { return true }
+  })
+
+  function closeMission() {
+    try { localStorage.setItem('al_mission_seen', '1') } catch {}
+    setMissionOpen(false)
+  }
 
   useEffect(() => {
     if (problems.length === 0) {
@@ -211,6 +322,15 @@ export default function ProblemLibrary({ onGoToModule }) {
 
       {/* ── Left: 3D preview panel — hidden on mobile ── */}
       <div className="hidden md:flex w-1/2 bg-zinc-950 flex-col border-r border-zinc-800 relative">
+
+        {/* Mission trigger */}
+        <button
+          onClick={() => setMissionOpen(true)}
+          className="absolute top-4 left-4 z-10 flex items-center gap-1.5 bg-zinc-900/90 hover:bg-zinc-800 border border-blue-500/40 text-blue-400 text-[10px] font-bold tracking-widest px-3 py-1.5 rounded-lg backdrop-blur-sm transition-colors"
+        >
+          ✦ OUR MISSION
+        </button>
+        {missionOpen && <MissionModal onClose={closeMission} />}
 
         {/* 3D canvas */}
         <div className="flex-1">
@@ -283,28 +403,21 @@ export default function ProblemLibrary({ onGoToModule }) {
         {/* ── Mission list, sandbox-forward: no gate, no click-through ── */}
         <div className="flex-1 overflow-y-auto px-5 py-5">
           <div className="mb-5">
-            <h1 className="text-base font-bold text-zinc-100 leading-snug mb-1.5">
+            <h1 className="text-base font-bold text-zinc-100 leading-snug mb-3">
               Practise aerodynamic design, not just read about it.
             </h1>
+
             <p className="text-[12px] text-zinc-500 leading-relaxed">
               Run experiments on airfoil geometries and get results in seconds instead of solver-hours,
               so you can iterate, fail fast, and build design intuition. Pick any problem below to start free-form,
               or use Module 01 for a structured track.
             </p>
             <p className="text-[11px] text-zinc-600 mt-2">
-              Airfoil problems for now. Fundamentals live in textbooks —{' '}
+              Airfoil problems for now. Fundamentals live in textbooks:{' '}
               <a href="https://github.com/barbagroup/CFDPython" target="_blank" rel="noreferrer" className="text-blue-500 hover:text-blue-400 underline underline-offset-2">
                 we'll point you at the good ones
               </a>.
             </p>
-            <div className="mt-3 pt-3 border-t border-zinc-800/60">
-              <div className="text-[9px] text-zinc-600 tracking-widest mb-1">OUR MISSION</div>
-              <p className="text-[11px] text-zinc-500 leading-relaxed">
-                Most people never get to try real aerodynamic design — the tools are slow, expensive, or locked
-                behind a research group. We're building the fastest honest way to practise it. Early, and still
-                shaping what comes next.
-              </p>
-            </div>
           </div>
 
           <p className="text-[10px] text-zinc-600 tracking-widest mb-4">SELECT A PROBLEM TO BEGIN</p>
@@ -319,13 +432,13 @@ export default function ProblemLibrary({ onGoToModule }) {
                   <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-blue-500" />
                   <div className="flex items-center justify-between mb-2 pl-2">
                     <span className="text-[10px] text-blue-400 tracking-widest font-bold font-mono">MODULE 01 · GUIDED TRACK</span>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded border tracking-widest text-blue-300 border-blue-400/40 bg-blue-400/10">STARTER</span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded border tracking-widest text-blue-300 border-blue-400/40 bg-blue-400/10">LONG FORM</span>
                   </div>
                   <div className="text-sm font-semibold text-zinc-100 mb-1.5 pl-2 group-hover:text-blue-200 transition-colors">
                     SPARROW-7 Wing Redesign
                   </div>
                   <div className="text-[12px] text-zinc-500 leading-relaxed mb-3 pl-2">
-                    A structured design loop — build intuition for camber, Reynolds number, and the CL/CD tradeoff before tackling open-ended problems.
+                    A structured design loop that builds intuition for camber, Reynolds number, and the CL/CD tradeoff before tackling open-ended problems.
                   </div>
                   <div className="flex items-center justify-between pt-2.5 border-t border-blue-900/40 pl-2">
                     <div className="flex gap-3 text-[11px] text-zinc-600 font-mono">
@@ -401,11 +514,6 @@ export default function ProblemLibrary({ onGoToModule }) {
                   </div>
                 </button>
               ))}
-            </div>
-
-            <div className="mt-6 pt-5 border-t border-zinc-800 flex flex-col gap-3">
-              <WaitlistBox />
-              <FeedbackBox />
             </div>
         </div>
       </div>
