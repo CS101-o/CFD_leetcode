@@ -276,7 +276,9 @@ def observe_session(session_id: str, key: str = Query("")):
 
 
 _SIM_EVENTS = {"simulation_run", "polar_sweep", "table_compare"}
-_SIGNUPS_PATH = os.path.join(os.environ.get("DATA_DIR") or os.path.join(os.path.dirname(__file__), "../../data"), "signups.jsonl")
+_USER_DATA_DIR = os.environ.get("DATA_DIR") or os.path.join(os.path.dirname(__file__), "../../data")
+_SIGNUPS_PATH = os.path.join(_USER_DATA_DIR, "signups.jsonl")
+_FEEDBACK_PATH = os.path.join(_USER_DATA_DIR, "feedback.jsonl")
 
 
 @router.get("/observe/funnel")
@@ -310,6 +312,11 @@ def observe_funnel(key: str = Query("")):
         with open(_SIGNUPS_PATH) as f:
             emails = sum(1 for line in f if line.strip())
 
+    feedback_count = 0
+    if os.path.isfile(_FEEDBACK_PATH):
+        with open(_FEEDBACK_PATH) as f:
+            feedback_count = sum(1 for line in f if line.strip())
+
     def pct(count):
         return round(100 * count / n, 1) if n else 0.0
 
@@ -322,4 +329,5 @@ def observe_funnel(key: str = Query("")):
         "completions": {"count": completions, "pct": pct(completions)},
         "email_prompts_shown": email_prompts_shown,
         "emails_captured": emails,
+        "feedback_submitted": feedback_count,
     }

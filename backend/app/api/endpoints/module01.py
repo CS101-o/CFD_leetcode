@@ -63,6 +63,8 @@ _DATA_DIR = os.path.join(os.path.dirname(__file__), "../../data")
 _USER_DATA_DIR = os.environ.get("DATA_DIR") or _DATA_DIR
 _ARTIFACT_DIR = os.path.join(_USER_DATA_DIR, "artifacts")
 _SIGNUPS_PATH = os.path.join(_USER_DATA_DIR, "signups.jsonl")
+_FEEDBACK_PATH = os.path.join(_USER_DATA_DIR, "feedback.jsonl")
+_EMAIL_RE = r"[^@\s]+@[^@\s]+\.[^@\s]+"
 
 
 def _load_module() -> dict:
@@ -565,7 +567,7 @@ class ClaimRequest(BaseModel):
 
 @router.post("/claim")
 def claim_artifact(req: ClaimRequest):
-    if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", req.email.strip()):
+    if not re.fullmatch(_EMAIL_RE, req.email.strip()):
         raise HTTPException(status_code=422, detail="Enter a valid email address")
     artifact = _load_artifact(req.artifact_id)
     artifact["claimed_email"] = req.email.strip()
@@ -589,9 +591,46 @@ class WaitlistRequest(BaseModel):
 
 @router.post("/waitlist")
 def join_waitlist(req: WaitlistRequest):
-    if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", req.email.strip()):
+    if not re.fullmatch(_EMAIL_RE, req.email.strip()):
         raise HTTPException(status_code=422, detail="Enter a valid email address")
     _append_signup({"email": req.email.strip(), "type": "waitlist", "source": req.source})
+    return {"status": "ok"}
+
+
+# ------------------------------------------------------------------
+# Feedback — free-text, main page
+# ------------------------------------------------------------------
+
+class FeedbackRequest(BaseModel):
+    message: str
+    email: str = ""
+    source: str = "main_page"
+
+
+@router.post("/feedback")
+def submit_feedback(req: FeedbackRequest, request: Request):
+    message = req.message.strip()
+    if len(message) < 3:
+        raise HTTPException(status_code=422, detail="Say a little more than that.")
+    if len(message) > 2000:
+        raise HTTPException(status_code=422, detail="Keep it under 2000 characters.")
+    email = req.email.strip()
+    if email and not re.fullmatch(_EMAIL_RE, email):
+        raise HTTPException(status_code=422, detail="That doesn't look like a valid email — or leave it blank.")
+
+    fwd = request.headers.get("x-forwarded-for")
+    ip = fwd.split(",")[0].strip() if fwd else (request.client.host if request.client else "unknown")
+
+    os.makedirs(_USER_DATA_DIR, exist_ok=True)
+    with open(_FEEDBACK_PATH, "a") as f:
+        f.write(json.dumps({
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "message": message,
+            "email": email or None,
+            "source": req.source,
+            "ip": ip,
+        }) + "\n")
+
     return {"status": "ok"}
 
 

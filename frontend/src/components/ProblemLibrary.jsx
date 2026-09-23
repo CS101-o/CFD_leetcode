@@ -51,6 +51,113 @@ function MetricRow({ label, current, target, passing }) {
   )
 }
 
+// ── waitlist + feedback, main page ─────────────────────────────────────────────
+
+function WaitlistBox() {
+  const [email, setEmail] = useState('')
+  const [state, setState] = useState('') // '' | 'saving' | 'done' | error text
+
+  function submit() {
+    setState('saving')
+    axios.post(`${API_URL}/module01/waitlist`, { email: email.trim(), source: 'main_page' })
+      .then(() => setState('done'))
+      .catch(err => setState(err.response?.data?.detail || 'Could not join — check the address.'))
+  }
+
+  return (
+    <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+      <div className="text-xs font-bold text-zinc-200 mb-1">Join the waitlist</div>
+      <p className="text-[11px] text-zinc-500 leading-relaxed mb-3">
+        Hear about new problems when they ship. No spam, unsubscribe anytime.
+      </p>
+      {state === 'done' ? (
+        <div className="text-emerald-400 text-xs font-bold">You're on the list.</div>
+      ) : (
+        <div className="flex gap-2">
+          <input
+            type="email"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            className="flex-1 min-w-0 bg-zinc-800 border border-zinc-700 text-zinc-100 text-xs rounded-lg px-3 py-2 outline-none focus:border-blue-500 placeholder-zinc-600"
+          />
+          <button
+            onClick={submit}
+            disabled={!email.trim() || state === 'saving'}
+            className="shrink-0 bg-zinc-100 hover:bg-white disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900 text-xs font-bold tracking-widest px-4 rounded-lg transition-colors"
+          >
+            JOIN
+          </button>
+        </div>
+      )}
+      {state && state !== 'saving' && state !== 'done' && (
+        <div className="text-red-400 text-[11px] mt-2">{state}</div>
+      )}
+    </div>
+  )
+}
+
+function FeedbackBox() {
+  const [message, setMessage] = useState('')
+  const [email, setEmail] = useState('')
+  const [state, setState] = useState('')
+
+  function submit() {
+    setState('saving')
+    axios.post(`${API_URL}/module01/feedback`, { message: message.trim(), email: email.trim(), source: 'main_page' })
+      .then(() => setState('done'))
+      .catch(err => setState(err.response?.data?.detail || 'Could not send — try again.'))
+  }
+
+  if (state === 'done') {
+    return (
+      <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+        <div className="text-xs font-bold text-zinc-200 mb-1">Give feedback</div>
+        <div className="text-emerald-400 text-xs font-bold">Got it — thanks.</div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+      <div className="text-xs font-bold text-zinc-200 mb-1">Give feedback</div>
+      <p className="text-[11px] text-zinc-500 leading-relaxed mb-3">
+        Tell us what's missing, broken, or confusing. We read all of it — or email{' '}
+        <a href="mailto:kaan.oktem@airfoillearner.com" className="text-blue-500 hover:text-blue-400 underline underline-offset-2">
+          kaan.oktem@airfoillearner.com
+        </a>{' '}
+        directly.
+      </p>
+      <textarea
+        value={message}
+        onChange={e => setMessage(e.target.value)}
+        placeholder="What would make this better?"
+        rows={3}
+        className="w-full bg-zinc-800 border border-zinc-700 text-zinc-100 text-xs rounded-lg px-3 py-2 outline-none focus:border-blue-500 placeholder-zinc-600 resize-none mb-2"
+      />
+      <div className="flex gap-2">
+        <input
+          type="email"
+          value={email}
+          onChange={e => setEmail(e.target.value)}
+          placeholder="email (optional, if you want a reply)"
+          className="flex-1 min-w-0 bg-zinc-800 border border-zinc-700 text-zinc-100 text-xs rounded-lg px-3 py-2 outline-none focus:border-blue-500 placeholder-zinc-600"
+        />
+        <button
+          onClick={submit}
+          disabled={message.trim().length < 3 || state === 'saving'}
+          className="shrink-0 bg-zinc-100 hover:bg-white disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900 text-xs font-bold tracking-widest px-4 rounded-lg transition-colors"
+        >
+          SEND
+        </button>
+      </div>
+      {state && state !== 'saving' && (
+        <div className="text-red-400 text-[11px] mt-2">{state}</div>
+      )}
+    </div>
+  )
+}
+
 // ── main ──────────────────────────────────────────────────────────────────────
 
 export default function ProblemLibrary({ onGoToModule }) {
@@ -190,6 +297,14 @@ export default function ProblemLibrary({ onGoToModule }) {
                 we'll point you at the good ones
               </a>.
             </p>
+            <div className="mt-3 pt-3 border-t border-zinc-800/60">
+              <div className="text-[9px] text-zinc-600 tracking-widest mb-1">OUR MISSION</div>
+              <p className="text-[11px] text-zinc-500 leading-relaxed">
+                Most people never get to try real aerodynamic design — the tools are slow, expensive, or locked
+                behind a research group. We're building the fastest honest way to practise it. Early, and still
+                shaping what comes next.
+              </p>
+            </div>
           </div>
 
           <p className="text-[10px] text-zinc-600 tracking-widest mb-4">SELECT A PROBLEM TO BEGIN</p>
@@ -286,6 +401,11 @@ export default function ProblemLibrary({ onGoToModule }) {
                   </div>
                 </button>
               ))}
+            </div>
+
+            <div className="mt-6 pt-5 border-t border-zinc-800 flex flex-col gap-3">
+              <WaitlistBox />
+              <FeedbackBox />
             </div>
         </div>
       </div>
