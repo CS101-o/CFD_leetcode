@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import axios from 'axios'
 import { Canvas } from '@react-three/fiber'
 import { OrbitControls, PerspectiveCamera, Line } from '@react-three/drei'
@@ -220,8 +220,8 @@ function BugReportBox() {
 
 function MissionModal({ onClose }) {
   return (
-    <div className="absolute inset-0 z-20 flex items-start justify-start p-6 bg-black/70 backdrop-blur-sm">
-      <div className="bg-zinc-950 border border-blue-500/30 rounded-xl max-w-md w-full max-h-full overflow-y-auto shadow-2xl">
+    <div className="fixed inset-0 z-40 flex items-start justify-start p-4 md:p-6 bg-black/70 backdrop-blur-sm overflow-y-auto">
+      <div className="bg-zinc-950 border border-blue-500/30 rounded-xl max-w-md w-full my-auto md:my-0 max-h-[85vh] overflow-y-auto shadow-2xl">
         <div className="flex items-center justify-between px-5 pt-5 sticky top-0 bg-zinc-950">
           <div className="text-[10px] font-bold text-blue-400 tracking-widest">OUR MISSION</div>
           <button
@@ -268,14 +268,26 @@ export default function ProblemLibrary({ onGoToModule }) {
   const [hovered, setHovered]     = useState(null)
   const [coords, setCoords]       = useState(null)
   const [loadingCoords, setLoadingCoords] = useState(false)
-  const [missionOpen, setMissionOpen] = useState(() => {
-    try { return !localStorage.getItem('al_mission_seen') } catch { return true }
-  })
+  const [missionOpen, setMissionOpen] = useState(false)
+  const missionAutoQueued = useRef(false)
 
   function closeMission() {
     try { localStorage.setItem('al_mission_seen', '1') } catch {}
     setMissionOpen(false)
   }
+
+  // First-ever visit: let the airfoil visual land and hold its "wow" moment
+  // for a beat before the popup covers it, instead of opening immediately.
+  useEffect(() => {
+    if (missionAutoQueued.current) return
+    if (!coords || loadingCoords) return
+    let seen = true
+    try { seen = !!localStorage.getItem('al_mission_seen') } catch { /* private mode */ }
+    if (seen) return
+    missionAutoQueued.current = true
+    const t = setTimeout(() => setMissionOpen(true), 3000)
+    return () => clearTimeout(t)
+  }, [coords, loadingCoords])
 
   useEffect(() => {
     if (problems.length === 0) {
@@ -319,6 +331,7 @@ export default function ProblemLibrary({ onGoToModule }) {
 
   return (
     <div className="flex h-full overflow-hidden">
+      {missionOpen && <MissionModal onClose={closeMission} />}
 
       {/* ── Left: 3D preview panel — hidden on mobile ── */}
       <div className="hidden md:flex w-1/2 bg-zinc-950 flex-col border-r border-zinc-800 relative">
@@ -330,7 +343,6 @@ export default function ProblemLibrary({ onGoToModule }) {
         >
           ✦ OUR MISSION
         </button>
-        {missionOpen && <MissionModal onClose={closeMission} />}
 
         {/* 3D canvas */}
         <div className="flex-1">
@@ -398,6 +410,13 @@ export default function ProblemLibrary({ onGoToModule }) {
           <span className="text-[11px] font-bold tracking-widest text-zinc-100">AIRFOILLEARNER</span>
           <span className="text-zinc-700 text-[11px]">·</span>
           <span className="text-[11px] text-zinc-500 tracking-widest">SANDBOX</span>
+          {/* Left panel (and its mission trigger) is desktop-only — give mobile a way in too */}
+          <button
+            onClick={() => setMissionOpen(true)}
+            className="md:hidden ml-auto flex items-center gap-1 text-blue-400 text-[10px] font-bold tracking-widest px-2.5 py-1 border border-blue-500/40 rounded-lg"
+          >
+            ✦ MISSION
+          </button>
         </header>
 
         {/* ── Mission list, sandbox-forward: no gate, no click-through ── */}
